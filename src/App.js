@@ -16,6 +16,25 @@ function App() {
   // object = logged in → show the main app
   const [currentUser, setCurrentUser] = useState(null);
   const [activePage, setActivePage]   = useState('dashboard');
+  React.useEffect(() => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      if (payload.exp * 1000 > Date.now()) {
+        setCurrentUser({
+          name:  payload.name,
+          email: payload.email,
+          role:  payload.role,
+        });
+      } else {
+        localStorage.removeItem('token');
+      }
+    } catch {
+      localStorage.removeItem('token');
+    }
+  }
+}, []);
   const pageTitles = {
   dashboard:   'Dashboard',
   learners:    'Learners',
@@ -28,9 +47,10 @@ function App() {
 
   const handleLogin  = (user) => { setCurrentUser(user); };
   const handleLogout = () => {
-    setCurrentUser(null);
-    setActivePage('dashboard');
-  };
+  localStorage.removeItem('token');
+  setCurrentUser(null);
+  setActivePage('dashboard');
+};
 
   const renderPage = () => {
     switch (activePage) {

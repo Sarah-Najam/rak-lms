@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import api from '../api';
 import { FaUser, FaLock, FaEye, FaEyeSlash } from 'react-icons/fa';
 
 function LoginPage({ onLogin }) {
@@ -10,24 +11,30 @@ function LoginPage({ onLogin }) {
   const [loading,  setLoading]  = useState(false);
 
   const handleLogin = async () => {
-    setError('');
-    if (!email || !password) {
-      setError('Please enter your email and password.');
-      return;
-    }
-    if (!email.endsWith('@rakproperties.ae')) {
-      setError('Please use your @rakproperties.ae email address.');
-      return;
-    }
-    setLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    if (email === 'admin@rakproperties.ae' && password === 'admin123') {
-      onLogin({ name: 'Training Manager', role: 'Admin', email });
-    } else {
-      setError('Incorrect email or password. Please try again.');
+  setError('');
+  if (!email || !password) {
+    setError('Please enter your email and password.');
+    return;
+  }
+  if (!email.endsWith('@rakproperties.ae')) {
+    setError('Please use your @rakproperties.ae email address.');
+    return;
+  }
+  setLoading(true);
+  try {
+    const data = await api.login(email, password);
+    if (data.error) {
+      setError(data.error);
       setLoading(false);
+    } else {
+      localStorage.setItem('token', data.token);
+      onLogin(data.user);
     }
-  };
+  } catch (err) {
+    setError('Cannot connect to server. Please try again.');
+    setLoading(false);
+  }
+};
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') handleLogin();
