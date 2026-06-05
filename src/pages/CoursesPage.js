@@ -647,8 +647,12 @@ function CoursesPage() {
                 style={{ ...styles.cancelBtn, background: '#dbeafe', color: '#1d4ed8', border: 'none' }}
                 onClick={async () => {
                   const result = await api.sendCheckinLinks(selected.id);
-                  alert(`✅ Check-in links generated for ${result.sent !== undefined ? result.sent : 0} learners!`);
-                }}
+if (result.links && result.links.length > 0) {
+  const linkList = result.links.map(l => `${l.name}: ${l.url}`).join('\n\n');
+  alert(`✅ Check-in links generated for ${result.links.length} learners!\n\nLinks (share manually until email is configured):\n\n${linkList}`);
+} else {
+  alert(result.message || 'No learners found.');
+}                }}
               >
                 📧 Send Check-in Links
               </button>
