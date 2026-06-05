@@ -1,30 +1,74 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api';
+import Pagination from '../components/Pagination';
+
+const ITEMS_PER_PAGE = 20;
 
 function DepartmentsPage() {
 
-  const [departments, setDepartments] = useState([]);
-  const [selected,    setSelected]    = useState(null);
-  const [showAdd,     setShowAdd]     = useState(false);
-  const [searchTerm,  setSearchTerm]  = useState('');
-  const [loading,     setLoading]     = useState(true);
-  const [form,        setForm]        = useState({ name: '', hod: '', designation: '', population: '' });
+  const [departments,   setDepartments]   = useState([]);
+  const [selected,      setSelected]      = useState(null);
+  const [showAdd,       setShowAdd]       = useState(false);
+  const [searchTerm,    setSearchTerm]    = useState('');
+  const [loading,       setLoading]       = useState(true);
+  const [currentPage,   setCurrentPage]   = useState(1);
+  const [courses,       setCourses]       = useState([]);
+  const [deptLearners,  setDeptLearners]  = useState([]);
+  const [deptLoading,   setDeptLoading]   = useState(false);
+  const [profileLearner,setProfileLearner]= useState(null);
+  const [form, setForm] = useState({
+    name: '', hod: '', designation: '', population: ''
+  });
 
   useEffect(() => {
+    loadDepartments();
+    api.getCourses().then(data => { if (Array.isArray(data)) setCourses(data); });
+  }, []);
+
+  const loadDepartments = () => {
     api.getDepartments()
       .then(data => {
         if (Array.isArray(data)) setDepartments(data);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, []);
+  };
 
   const filtered = departments.filter(d =>
     d.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const paginated = filtered.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
   const totalPopulation = departments.reduce((s, d) => s + (+d.population || 0), 0);
   const totalLearners   = departments.reduce((s, d) => s + (+d.learner_count || 0), 0);
+
+  const getDeptCourses = (deptId) => courses;
+
+  const getDeptTotalHours = (deptId) =>
+    courses.reduce((s, c) => {
+      const hours    = +c.duration_hours  || 0;
+      const attended = +c.attended_count  || 0;
+      return s + hours * attended;
+    }, 0);
+
+  const openDetail = async (dept) => {
+    setSelected(dept);
+    setDeptLoading(true);
+    setDeptLearners([]);
+    try {
+      const all = await api.getLearners();
+      if (Array.isArray(all)) {
+        setDeptLearners(all.filter(l => l.department_id === dept.id));
+      }
+    } catch (err) {
+      setDeptLearners([]);
+    }
+    setDeptLoading(false);
+  };
 
   const handleSave = async () => {
     if (!form.name) { alert('Department name is required.'); return; }
@@ -36,9 +80,7 @@ function DepartmentsPage() {
         population:  +form.population || 0,
       });
       if (newDept.id) {
-        api.getDepartments().then(data => {
-          if (Array.isArray(data)) setDepartments(data);
-        });
+        loadDepartments();
         setForm({ name: '', hod: '', designation: '', population: '' });
         setShowAdd(false);
       } else {
@@ -55,6 +97,7 @@ function DepartmentsPage() {
   return (
     <div style={styles.page}>
 
+      {/* ── STAT CARDS ── */}
       <div style={styles.statGrid}>
         <div style={styles.statCard}>
           <div style={styles.statIconWrap}>
@@ -109,52 +152,94 @@ function DepartmentsPage() {
         </div>
       </div>
 
+      {/* ── CONTROLS ── */}
       <div style={styles.controls}>
         <div style={styles.searchWrap}>
           <span style={{ fontSize: '13px' }}>🔍</span>
-          <input style={styles.searchInput} placeholder="Search by Department"
-            value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+          <input
+            style={styles.searchInput}
+            placeholder="Search by Department"
+            value={searchTerm}
+            onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+          />
         </div>
-        <button style={styles.addBtn} onClick={() => setShowAdd(true)}>Add Department</button>
+        <button style={styles.addBtn} onClick={() => setShowAdd(true)}>
+          Add Department
+        </button>
       </div>
 
+      {/* ── TABLE ── */}
       {loading ? (
-        <div style={{ padding: '40px', textAlign: 'center', color: '#9baabb' }}>Loading departments...</div>
+        <div style={{ padding: '40px', textAlign: 'center', color: '#9baabb' }}>
+          Loading departments...
+        </div>
       ) : (
         <div style={styles.tableWrap}>
-          <table style={styles.table}>
-            <thead>
-              <tr style={styles.theadRow}>
-                {['No.', 'Department', 'Department Population', 'Active Learners', 'Inactive Learners', ''].map(h => (
-                  <th key={h} style={styles.th}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((dept, i) => (
-                <tr key={dept.id} style={styles.tr}>
-                  <td style={styles.td}>{i + 1}</td>
-                  <td style={styles.td}>
-                    <button style={styles.deptNameBtn} onClick={() => setSelected(dept)}>{dept.name}</button>
-                  </td>
-                  <td style={{ ...styles.td, fontWeight: 600 }}>{dept.population || 0}</td>
-                  <td style={{ ...styles.td, fontWeight: 600, color: '#15803d' }}>{dept.learner_count || 0}</td>
-                  <td style={{ ...styles.td, fontWeight: 600, color: '#9b2020' }}>0</td>
-                  <td style={styles.td}>
-                    <button style={styles.viewBtn} onClick={() => setSelected(dept)}>View</button>
-                  </td>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ ...styles.table, minWidth: '800px' }}>
+              <thead>
+                <tr style={styles.theadRow}>
+                  {['No.', 'Department', 'Population', 'Active Learners',
+                    'Inactive Learners', 'Total Courses', 'Total Training Hours', ''].map(h => (
+                    <th key={h} style={styles.th}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {paginated.map((dept, i) => {
+                  const totalHours = getDeptTotalHours(dept.id);
+                  return (
+                    <tr key={dept.id} style={styles.tr}>
+                      <td style={styles.td}>
+                        {(currentPage - 1) * ITEMS_PER_PAGE + i + 1}
+                      </td>
+                      <td style={styles.td}>
+                        <button style={styles.deptNameBtn} onClick={() => openDetail(dept)}>
+                          {dept.name}
+                        </button>
+                      </td>
+                      <td style={{ ...styles.td, fontWeight: 600 }}>{dept.population || 0}</td>
+                      <td style={{ ...styles.td, fontWeight: 600, color: '#15803d' }}>
+                        {dept.learner_count || 0}
+                      </td>
+                      <td style={{ ...styles.td, fontWeight: 600, color: '#991b1b' }}>0</td>
+                      <td style={{ ...styles.td, fontWeight: 600 }}>
+                        {dept.course_count || 0}
+                      </td>
+                      <td style={{ ...styles.td, fontWeight: 600 }}>
+                        {totalHours > 0 ? totalHours + 'h' : '—'}
+                      </td>
+                      <td style={styles.td}>
+                        <button style={styles.viewBtn} onClick={() => openDetail(dept)}>
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
           {filtered.length === 0 && (
             <div style={{ padding: '40px', textAlign: 'center', color: '#9baabb', fontSize: '14px' }}>
-              {departments.length === 0 ? 'No departments yet. Click "Add Department" to get started.' : 'No departments found.'}
+              {departments.length === 0
+                ? 'No departments yet. Click "Add Department" to get started.'
+                : 'No departments found.'
+              }
             </div>
           )}
+
+          <Pagination
+            currentPage={currentPage}
+            totalItems={filtered.length}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setCurrentPage}
+          />
         </div>
       )}
 
+      {/* ── ADD DEPARTMENT MODAL ── */}
       {showAdd && (
         <div style={styles.overlay} onClick={() => setShowAdd(false)}>
           <div style={styles.modal} onClick={e => e.stopPropagation()}>
@@ -184,42 +269,153 @@ function DepartmentsPage() {
         </div>
       )}
 
+      {/* ── DEPARTMENT DETAIL POPUP ── */}
       {selected && (
-        <div style={styles.overlay} onClick={() => setSelected(null)}>
-          <div style={styles.profileModal} onClick={e => e.stopPropagation()}>
+        <div style={styles.overlay} onClick={() => { setSelected(null); setProfileLearner(null); }}>
+          <div style={{ ...styles.modal, maxWidth: '680px' }} onClick={e => e.stopPropagation()}>
             <div style={styles.modalHeader}>
               <span style={styles.modalTitle}>{selected.name}</span>
-              <button style={styles.modalClose} onClick={() => setSelected(null)}>×</button>
+              <button style={styles.modalClose} onClick={() => { setSelected(null); setProfileLearner(null); }}>×</button>
             </div>
             <div style={styles.modalBody}>
+
+              {/* HOD section */}
               <div style={styles.hodSection}>
                 <div>
-                  <div style={{ fontSize: '11px', color: '#9baabb' }}>Department head</div>
-                  <div style={{ fontSize: '16px', fontWeight: '700', color: '#051c2c', marginTop: '2px' }}>{selected.hod || '—'}</div>
-                  {selected.designation && <div style={{ fontSize: '13px', color: '#5a6878', marginTop: '2px' }}>{selected.designation}</div>}
+                  <div style={{ fontSize: '11px', color: '#9baabb' }}>Department Head</div>
+                  <div style={{ fontSize: '16px', fontWeight: '700', color: '#051c2c', marginTop: '2px' }}>
+                    {selected.hod || '—'}
+                  </div>
+                  {selected.designation && (
+                    <div style={{ fontSize: '13px', color: '#5a6878', marginTop: '2px' }}>
+                      {selected.designation}
+                    </div>
+                  )}
                 </div>
-                <div style={styles.hodAvatar}>{selected.hod ? initials(selected.hod) : '—'}</div>
+                <div style={styles.hodAvatar}>
+                  {selected.hod ? initials(selected.hod) : '—'}
+                </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '10px', marginBottom: '20px' }}>
+
+              {/* Stats */}
+              <div style={styles.profileStats}>
                 {[
-                  ['Total Learners',   selected.learner_count || 0],
-                  ['Total Courses',    selected.course_count  || 0],
-                  ['Population',       selected.population    || 0],
-                  ['Training Hours',   '—'],
+                  ['Total Learners',   deptLearners.length],
+                  ['Active',           deptLearners.filter(l => l.status === 'Active').length],
+                  ['Population',       selected.population || 0],
+                  ['Training Hours',   getDeptTotalHours(selected.id) + 'h'],
                 ].map(([k, v]) => (
-                  <div key={k} style={{ background: '#f8f9fa', borderRadius: '10px', padding: '14px', textAlign: 'center', border: '1px solid #e8ecf0' }}>
-                    <div style={{ fontSize: '22px', fontWeight: '800', color: '#051c2c' }}>{v}</div>
-                    <div style={{ fontSize: '10px', color: '#5a6878', fontWeight: '600', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{k}</div>
+                  <div key={k} style={styles.profileStatCard}>
+                    <div style={styles.profileStatNum}>{v}</div>
+                    <div style={styles.profileStatLbl}>{k}</div>
                   </div>
                 ))}
               </div>
-              <div style={{ padding: '12px 16px', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #e8ecf0', display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '13px', fontWeight: '600', color: '#051c2c' }}>Department Population</span>
-                <span style={{ fontSize: '18px', fontWeight: '800', color: '#051c2c' }}>{selected.population || 0}</span>
+
+              {/* Learners list */}
+              <div>
+                <div style={styles.sectionLabel}>
+                  Learners in this Department
+                  <span style={{ fontSize: '11px', color: '#9baabb', fontWeight: '400', marginLeft: '8px' }}>
+                    {deptLearners.length} total
+                  </span>
+                </div>
+
+                {deptLoading ? (
+                  <div style={{ padding: '20px', textAlign: 'center', color: '#9baabb', fontSize: '13px' }}>
+                    Loading learners...
+                  </div>
+                ) : deptLearners.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {deptLearners.map(learner => (
+                      <div
+                        key={learner.id}
+                        onClick={() => setProfileLearner(learner)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '12px',
+                          padding: '10px 14px', borderRadius: '8px', cursor: 'pointer',
+                          border: '1px solid #e8ecf0', background: '#f8f9fa',
+                        }}
+                      >
+                        <div style={{
+                          width: '32px', height: '32px', borderRadius: '50%',
+                          background: '#051c2c', color: '#ffffff',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '11px', fontWeight: '700', flexShrink: 0,
+                        }}>
+                          {learner.name.split(' ').slice(0,2).map(w => w[0]).join('')}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '13px', fontWeight: '600', color: '#051c2c' }}>
+                            {learner.name}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#9baabb', marginTop: '2px' }}>
+                            {learner.designation || '—'} · {learner.emp_id || '—'}
+                          </div>
+                        </div>
+                        <span style={{
+                          background: learner.status === 'Active' ? '#dcfce7' : '#fee2e2',
+                          color:      learner.status === 'Active' ? '#15803d' : '#991b1b',
+                          padding: '2px 8px', borderRadius: '10px',
+                          fontSize: '11px', fontWeight: '600',
+                        }}>
+                          {learner.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ padding: '20px', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #e8ecf0', textAlign: 'center', fontSize: '13px', color: '#9baabb' }}>
+                    No learners assigned to this department yet.
+                  </div>
+                )}
+              </div>
+
+            </div>
+            <div style={styles.modalFooter}>
+              <button style={styles.cancelBtn} onClick={() => { setSelected(null); setProfileLearner(null); }}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── LEARNER MINI PROFILE FROM DEPT POPUP ── */}
+      {profileLearner && (
+        <div style={{ ...styles.overlay, zIndex: 1100 }} onClick={() => setProfileLearner(null)}>
+          <div style={{ ...styles.modal, maxWidth: '420px' }} onClick={e => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <span style={styles.modalTitle}>Learner Profile</span>
+              <button style={styles.modalClose} onClick={() => setProfileLearner(null)}>×</button>
+            </div>
+            <div style={styles.modalBody}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '16px', background: '#f8f9fa', borderRadius: '10px', border: '1px solid #e8ecf0', marginBottom: '16px' }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#051c2c', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: '700', flexShrink: 0 }}>
+                  {profileLearner.name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase()}
+                </div>
+                <div>
+                  <div style={{ fontSize: '16px', fontWeight: '700', color: '#051c2c' }}>{profileLearner.name}</div>
+                  <div style={{ fontSize: '12px', color: '#5a6878', marginTop: '2px' }}>{profileLearner.designation || '—'}</div>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                {[
+                  ['Emp ID',      profileLearner.emp_id      || '—'],
+                  ['Email',       profileLearner.email       || '—'],
+                  ['Gender',      profileLearner.gender      || '—'],
+                  ['Nationality', profileLearner.nationality || '—'],
+                  ['Status',      profileLearner.status      || '—'],
+                  ['Joined',      profileLearner.created_at
+                    ? new Date(profileLearner.created_at).toLocaleDateString('en-GB') : '—'],
+                ].map(([k, v]) => (
+                  <div key={k}>
+                    <div style={{ fontSize: '10px', fontWeight: '700', color: '#9baabb', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>{k}</div>
+                    <div style={{ fontSize: '13px', fontWeight: '500', color: '#051c2c' }}>{v}</div>
+                  </div>
+                ))}
               </div>
             </div>
             <div style={styles.modalFooter}>
-              <button style={styles.cancelBtn} onClick={() => setSelected(null)}>Close</button>
+              <button style={styles.cancelBtn} onClick={() => setProfileLearner(null)}>Close</button>
             </div>
           </div>
         </div>
@@ -232,47 +428,56 @@ function DepartmentsPage() {
 function F({ label, value, onChange, placeholder, type = 'text' }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-      <label style={{ fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</label>
-      <input type={type} value={value} placeholder={placeholder} onChange={e => onChange(e.target.value)}
-        style={{ padding: '10px 12px', border: '1.5px solid #e8ecf0', borderRadius: '8px', fontSize: '13px', outline: 'none', background: '#f8f9fa', color: '#051c2c', fontFamily: 'Inter, sans-serif', width: '100%' }} />
+      <label style={{ fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        {label}
+      </label>
+      <input
+        type={type} value={value} placeholder={placeholder}
+        onChange={e => onChange(e.target.value)}
+        style={{ padding: '10px 12px', border: '1.5px solid #e8ecf0', borderRadius: '8px', fontSize: '13px', outline: 'none', background: '#f8f9fa', color: '#051c2c', fontFamily: 'Inter, sans-serif', width: '100%' }}
+      />
     </div>
   );
 }
 
 const styles = {
-  page:          { padding: '30px', minHeight: '100vh', background: '#f2f4f6', fontFamily: 'Inter, sans-serif' },
-  statGrid:      { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '22px' },
-  statCard:      { background: '#ffffff', borderRadius: '14px', border: '1.5px solid #e8ecf0', padding: '24px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', textAlign: 'center' },
-  statIconWrap:  { width: '64px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  statNum:       { fontSize: '36px', fontWeight: '800', color: '#051c2c', lineHeight: 1 },
-  statLbl:       { fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.8px' },
-  controls:      { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' },
-  searchWrap:    { display: 'flex', alignItems: 'center', background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '8px', padding: '0 12px', gap: '6px' },
-  searchInput:   { border: 'none', outline: 'none', fontSize: '13px', padding: '10px 0', width: '220px', background: 'transparent', fontFamily: 'Inter, sans-serif' },
-  addBtn:        { background: '#051c2c', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
-  tableWrap:     { background: '#ffffff', borderRadius: '12px', border: '1px solid #e8ecf0', overflow: 'hidden' },
-  table:         { width: '100%', borderCollapse: 'collapse' },
-  theadRow:      { background: '#ffffff', borderBottom: '2px solid #e8ecf0' },
-  th:            { padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px' },
-  tr:            { borderBottom: '1px solid #f0f2f4' },
-  td:            { padding: '14px 16px', fontSize: '13px', color: '#051c2c', verticalAlign: 'middle' },
-  deptNameBtn:   { background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: '#051c2c', padding: 0, fontFamily: 'Inter, sans-serif', textDecoration: 'underline', textDecorationColor: '#e8ecf0' },
-  viewBtn:       { background: '#f2f4f6', border: 'none', borderRadius: '6px', padding: '5px 14px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', color: '#051c2c', fontFamily: 'Inter, sans-serif' },
-  overlay:       { position: 'fixed', inset: 0, background: 'rgba(5,28,44,0.55)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' },
-  modal:         { background: '#ffffff', borderRadius: '16px', width: '100%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(5,28,44,0.25)' },
-  profileModal:  { background: '#ffffff', borderRadius: '16px', width: '100%', maxWidth: '580px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(5,28,44,0.25)' },
-  modalHeader:   { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #e8ecf0', position: 'sticky', top: 0, background: '#ffffff', zIndex: 1 },
-  modalTitle:    { fontSize: '18px', fontWeight: '700', color: '#051c2c' },
-  modalClose:    { background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#9baabb' },
-  modalBody:     { padding: '22px 24px' },
-  modalFooter:   { padding: '14px 24px', borderTop: '1px solid #e8ecf0', display: 'flex', justifyContent: 'flex-end', gap: '10px' },
-  cancelBtn:     { padding: '9px 20px', background: 'none', border: '1.5px solid #e8ecf0', borderRadius: '8px', fontSize: '13px', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
-  saveBtn:       { padding: '9px 24px', background: '#051c2c', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', color: '#ffffff', fontFamily: 'Inter, sans-serif' },
-  addModalGrid:  { display: 'grid', gridTemplateColumns: '1fr auto', gap: '24px' },
-  photoUpload:   { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', paddingTop: '8px' },
-  photoCircle:   { width: '80px', height: '80px', borderRadius: '50%', border: '2px dashed #e8ecf0', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' },
-  hodSection:    { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', padding: '16px 18px', background: '#f8f9fa', borderRadius: '10px', border: '1px solid #e8ecf0' },
-  hodAvatar:     { width: '52px', height: '52px', borderRadius: '50%', background: '#051c2c', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: '700', flexShrink: 0 },
+  page:           { padding: '30px', minHeight: '100vh', background: '#f2f4f6', fontFamily: 'Inter, sans-serif' },
+  statGrid:       { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '22px' },
+  statCard:       { background: '#ffffff', borderRadius: '14px', border: '1.5px solid #e8ecf0', padding: '24px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', textAlign: 'center' },
+  statIconWrap:   { width: '64px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  statNum:        { fontSize: '36px', fontWeight: '800', color: '#051c2c', lineHeight: 1 },
+  statLbl:        { fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.8px' },
+  controls:       { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' },
+  searchWrap:     { display: 'flex', alignItems: 'center', background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '8px', padding: '0 12px', gap: '6px' },
+  searchInput:    { border: 'none', outline: 'none', fontSize: '13px', padding: '10px 0', width: '220px', background: 'transparent', fontFamily: 'Inter, sans-serif' },
+  addBtn:         { background: '#051c2c', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
+  tableWrap:      { background: '#ffffff', borderRadius: '12px', border: '1px solid #e8ecf0', overflow: 'hidden' },
+  table:          { width: '100%', borderCollapse: 'collapse' },
+  theadRow:       { background: '#051c2c' },
+  th:             { padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' },
+  tr:             { borderBottom: '1px solid #f0f2f4' },
+  td:             { padding: '14px 16px', fontSize: '13px', color: '#051c2c', verticalAlign: 'middle' },
+  deptNameBtn:    { background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: '#051c2c', padding: 0, fontFamily: 'Inter, sans-serif', textDecoration: 'underline', textDecorationColor: '#e8ecf0' },
+  viewBtn:        { background: '#f2f4f6', border: 'none', borderRadius: '6px', padding: '5px 14px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', color: '#051c2c', fontFamily: 'Inter, sans-serif' },
+  overlay:        { position: 'fixed', inset: 0, background: 'rgba(5,28,44,0.55)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' },
+  modal:          { background: '#ffffff', borderRadius: '16px', width: '100%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(5,28,44,0.25)' },
+  modalHeader:    { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #e8ecf0', position: 'sticky', top: 0, background: '#ffffff', zIndex: 1 },
+  modalTitle:     { fontSize: '18px', fontWeight: '700', color: '#051c2c' },
+  modalClose:     { background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#9baabb' },
+  modalBody:      { padding: '22px 24px' },
+  modalFooter:    { padding: '14px 24px', borderTop: '1px solid #e8ecf0', display: 'flex', justifyContent: 'flex-end', gap: '10px' },
+  cancelBtn:      { padding: '9px 20px', background: 'none', border: '1.5px solid #e8ecf0', borderRadius: '8px', fontSize: '13px', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
+  saveBtn:        { padding: '9px 24px', background: '#051c2c', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', color: '#ffffff', fontFamily: 'Inter, sans-serif' },
+  addModalGrid:   { display: 'grid', gridTemplateColumns: '1fr auto', gap: '24px' },
+  photoUpload:    { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', paddingTop: '8px' },
+  photoCircle:    { width: '80px', height: '80px', borderRadius: '50%', border: '2px dashed #e8ecf0', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' },
+  hodSection:     { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', padding: '16px 18px', background: '#f8f9fa', borderRadius: '10px', border: '1px solid #e8ecf0' },
+  hodAvatar:      { width: '52px', height: '52px', borderRadius: '50%', background: '#051c2c', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: '700', flexShrink: 0 },
+  profileStats:   { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '20px' },
+  profileStatCard:{ background: '#f8f9fa', borderRadius: '10px', padding: '14px', textAlign: 'center', border: '1px solid #e8ecf0' },
+  profileStatNum: { fontSize: '22px', fontWeight: '800', color: '#051c2c' },
+  profileStatLbl: { fontSize: '10px', color: '#5a6878', fontWeight: '600', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.4px' },
+  sectionLabel:   { fontSize: '12px', fontWeight: '700', color: '#051c2c', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px', paddingBottom: '8px', borderBottom: '1px solid #e8ecf0' },
 };
 
 export default DepartmentsPage;

@@ -1,76 +1,99 @@
 import React, { useState } from 'react';
-import Sidebar from './components/Sidebar';
-import LoginPage from './pages/LoginPage';
-import DashboardPage from './pages/DashboardPage';
-import LearnersPage from './pages/LearnersPage';
-import CoursesPage from './pages/CoursesPage';
+import Sidebar        from './components/Sidebar';
+import CheckinPage from './pages/CheckinPage';
+import Topbar         from './components/Topbar';
+import LoginPage      from './pages/LoginPage';
+import DashboardPage  from './pages/DashboardPage';
+import LearnersPage   from './pages/LearnersPage';
+import CoursesPage    from './pages/CoursesPage';
 import DepartmentsPage from './pages/DepartmentsPage';
-import TrainersPage from './pages/TrainersPage';
-import CalendarPage from './pages/CalendarPage';
-import ReportsPage from './pages/ReportsPage';
-import Topbar from './components/Topbar';
+import TrainersPage   from './pages/TrainersPage';
+import CalendarPage   from './pages/CalendarPage';
+import ReportsPage    from './pages/ReportsPage';
+import SettingsPage   from './pages/SettingsPage';
+import SetPasswordPage from './pages/SetPasswordPage';
+
 
 function App() {
 
-  // null = not logged in → show Login page
-  // object = logged in → show the main app
   const [currentUser, setCurrentUser] = useState(null);
-  const [activePage, setActivePage]   = useState('dashboard');
-  React.useEffect(() => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      if (payload.exp * 1000 > Date.now()) {
-        setCurrentUser({
-          name:  payload.name,
-          email: payload.email,
-          role:  payload.role,
-        });
-      } else {
-        localStorage.removeItem('token');
-      }
-    } catch {
-      localStorage.removeItem('token');
-    }
-  }
-}, []);
-  const pageTitles = {
-  dashboard:   'Dashboard',
-  learners:    'Learners',
-  courses:     'Courses',
-  departments: 'Departments',
-  trainers:    'Trainers',
-  calendar:    'Training Calendar',
-  reports:     'Reports',
-};
+  const [activePage,  setActivePage]  = useState('dashboard');
 
   const handleLogin  = (user) => { setCurrentUser(user); };
   const handleLogout = () => {
-  localStorage.removeItem('token');
-  setCurrentUser(null);
-  setActivePage('dashboard');
-};
+    localStorage.removeItem('token');
+    setCurrentUser(null);
+    setActivePage('dashboard');
+  };
+
+  React.useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if (payload.exp * 1000 > Date.now()) {
+          setCurrentUser({
+            name:  payload.name,
+            email: payload.email,
+            role:  payload.role,
+          });
+        } else {
+          localStorage.removeItem('token');
+        }
+      } catch {
+        localStorage.removeItem('token');
+      }
+    }
+  }, []);
+
+  const pageTitles = {
+    dashboard:   'Dashboard',
+    learners:    'Learners',
+    courses:     'Courses',
+    departments: 'Departments',
+    trainers:    'Trainers',
+    calendar:    'Training Calendar',
+    reports:     'Reports',
+    settings:    'Settings',
+  };
 
   const renderPage = () => {
     switch (activePage) {
       case 'dashboard':   return <DashboardPage />;
       case 'learners':    return <LearnersPage />;
-      case 'courses':    return <CoursesPage />;
+      case 'courses':     return <CoursesPage />;
       case 'departments': return <DepartmentsPage />;
-      case 'trainers':    return <TrainersPage />;      
+      case 'trainers':    return <TrainersPage />;
       case 'calendar':    return <CalendarPage />;
       case 'reports':     return <ReportsPage />;
+      case 'settings':    return <SettingsPage />;
       default:            return <DashboardPage />;
     }
   };
 
-  // ── NOT logged in → show Login page only ──
+  // ── Check-in page (no login needed) ──
+  if (window.location.pathname === '/checkin' ||
+      window.location.search.includes('token=') &&
+      !window.location.search.includes('login')) {
+    return <CheckinPage />;
+  }
+
+  // ── Set password page (no login needed) ──
+  if (window.location.search.includes('token=')) {
+    return <SetPasswordPage />;
+  }
+
+  // ── Not logged in ──
+  if (window.location.pathname === '/checkin' ||
+    window.location.search.includes('token=')) {
+  return <CheckinPage />;
+}
+
   if (!currentUser) {
     return <LoginPage onLogin={handleLogin} />;
   }
 
-  // ── Logged in → show full app ──
+  // ── Logged in ──
   return (
     <div style={{ display: 'flex', height: '100vh', fontFamily: 'Inter, sans-serif' }}>
       <Sidebar
@@ -80,25 +103,14 @@ function App() {
         onLogout={handleLogout}
       />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-  <Topbar
-    title={pageTitles[activePage] || 'Dashboard'}
-    user={currentUser}
-  />
-  <div style={{ flex: 1, overflow: 'auto', background: '#f2f4f6' }}>
-    {renderPage()}
-  </div>
-</div>
-    </div>
-  );
-}
-
-function PlaceholderPage({ title }) {
-  return (
-    <div style={{ padding: '40px' }}>
-      <h1 style={{ color: '#051c2c', fontSize: '28px', fontWeight: '700' }}>{title}</h1>
-      <p style={{ color: '#5a6878', marginTop: '8px', fontSize: '14px' }}>
-        This page is being built. Check back soon! 🚀
-      </p>
+        <Topbar
+          title={pageTitles[activePage] || 'Dashboard'}
+          user={currentUser}
+        />
+        <div style={{ flex: 1, overflow: 'auto', background: '#f2f4f6' }}>
+          {renderPage()}
+        </div>
+      </div>
     </div>
   );
 }

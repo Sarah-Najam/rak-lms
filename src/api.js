@@ -1,4 +1,6 @@
-const BASE_URL = 'http://localhost:5000/api';
+const BASE_URL = process.env.NODE_ENV === 'production'
+  ? 'https://rak-lms-backend.onrender.com/api'
+  : 'http://localhost:5000/api';
 
 const getToken = () => localStorage.getItem('token');
 
@@ -8,6 +10,8 @@ const headers = () => ({
 });
 
 const api = {
+
+  // ── AUTH ──────────────────────────────────────────────────
   login: (email, password) =>
     fetch(`${BASE_URL}/auth/login`, {
       method: 'POST',
@@ -15,6 +19,27 @@ const api = {
       body: JSON.stringify({ email, password }),
     }).then(r => r.json()),
 
+  getUsers: () =>
+    fetch(`${BASE_URL}/auth/users`, { headers: headers() }).then(r => r.json()),
+
+  inviteUser: (data) =>
+    fetch(`${BASE_URL}/auth/invite`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify(data),
+    }).then(r => r.json()),
+
+  verifyInvite: (token) =>
+    fetch(`${BASE_URL}/auth/verify-invite/${token}`).then(r => r.json()),
+
+  setPassword: (token, password) =>
+    fetch(`${BASE_URL}/auth/set-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, password }),
+    }).then(r => r.json()),
+
+  // ── LEARNERS ──────────────────────────────────────────────
   getLearners: () =>
     fetch(`${BASE_URL}/learners`, { headers: headers() }).then(r => r.json()),
 
@@ -38,6 +63,7 @@ const api = {
       headers: headers(),
     }).then(r => r.json()),
 
+  // ── COURSES ───────────────────────────────────────────────
   getCourses: () =>
     fetch(`${BASE_URL}/courses`, { headers: headers() }).then(r => r.json()),
 
@@ -61,6 +87,7 @@ const api = {
       headers: headers(),
     }).then(r => r.json()),
 
+  // ── DEPARTMENTS ───────────────────────────────────────────
   getDepartments: () =>
     fetch(`${BASE_URL}/departments`, { headers: headers() }).then(r => r.json()),
 
@@ -71,6 +98,20 @@ const api = {
       body: JSON.stringify(data),
     }).then(r => r.json()),
 
+  updateDepartment: (id, data) =>
+    fetch(`${BASE_URL}/departments/${id}`, {
+      method: 'PUT',
+      headers: headers(),
+      body: JSON.stringify(data),
+    }).then(r => r.json()),
+
+  deleteDepartment: (id) =>
+    fetch(`${BASE_URL}/departments/${id}`, {
+      method: 'DELETE',
+      headers: headers(),
+    }).then(r => r.json()),
+
+  // ── TRAINERS ──────────────────────────────────────────────
   getTrainers: () =>
     fetch(`${BASE_URL}/trainers`, { headers: headers() }).then(r => r.json()),
 
@@ -81,9 +122,26 @@ const api = {
       body: JSON.stringify(data),
     }).then(r => r.json()),
 
-  getCalendar: (year, quarter) =>
-    fetch(`${BASE_URL}/calendar?year=${year}&quarter=${quarter}`,
-      { headers: headers() }).then(r => r.json()),
+  updateTrainer: (id, data) =>
+    fetch(`${BASE_URL}/trainers/${id}`, {
+      method: 'PUT',
+      headers: headers(),
+      body: JSON.stringify(data),
+    }).then(r => r.json()),
+
+  deleteTrainer: (id) =>
+    fetch(`${BASE_URL}/trainers/${id}`, {
+      method: 'DELETE',
+      headers: headers(),
+    }).then(r => r.json()),
+
+  // ── CALENDAR ──────────────────────────────────────────────
+  getCalendar: (year, quarter) => {
+    const url = quarter && quarter !== 'ALL'
+      ? `${BASE_URL}/calendar?year=${year}&quarter=${quarter}`
+      : `${BASE_URL}/calendar?year=${year}`;
+    return fetch(url, { headers: headers() }).then(r => r.json());
+  },
 
   addCalendarEntry: (data) =>
     fetch(`${BASE_URL}/calendar`, {
@@ -92,14 +150,78 @@ const api = {
       body: JSON.stringify(data),
     }).then(r => r.json()),
 
+  deleteCalendarEntry: (id) =>
+    fetch(`${BASE_URL}/calendar/${id}`, {
+      method: 'DELETE',
+      headers: headers(),
+    }).then(r => r.json()),
+
+  // ── REPORTS ───────────────────────────────────────────────
   getReports: () =>
     fetch(`${BASE_URL}/reports`, { headers: headers() }).then(r => r.json()),
 
-  inviteUser: (data) =>
-    fetch(`${BASE_URL}/auth/invite`, {
+  // ── ENROLLMENTS ───────────────────────────────────────────
+  getEnrollmentsByLearner: (id) =>
+    fetch(`${BASE_URL}/enrollments/learner/${id}`, { headers: headers() }).then(r => r.json()),
+
+  getEnrollmentsByCourse: (id) =>
+    fetch(`${BASE_URL}/enrollments/course/${id}`, { headers: headers() }).then(r => r.json()),
+
+  enrollLearner: (learner_id, course_id) =>
+    fetch(`${BASE_URL}/enrollments`, {
       method: 'POST',
       headers: headers(),
-      body: JSON.stringify(data),
+      body: JSON.stringify({ learner_id, course_id }),
+    }).then(r => r.json()),
+
+  unenrollLearner: (learner_id, course_id) =>
+    fetch(`${BASE_URL}/enrollments`, {
+      method: 'DELETE',
+      headers: headers(),
+      body: JSON.stringify({ learner_id, course_id }),
+    }).then(r => r.json()),
+
+  sendCheckinLinks: (courseId) =>
+    fetch(`${BASE_URL}/enrollments/send-checkin/${courseId}`, {
+      method: 'POST',
+      headers: headers(),
+    }).then(r => r.json()),
+
+  // ── UPLOAD ────────────────────────────────────────────────
+  uploadFile: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(`${BASE_URL}/upload`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${getToken()}` },
+      body: formData,
+    });
+    return response.json();
+  },
+getEnrollmentsByLearner: (id) =>
+    fetch(`${BASE_URL}/enrollments/learner/${id}`, { headers: headers() }).then(r => r.json()),
+
+  getEnrollmentsByCourse: (id) =>
+    fetch(`${BASE_URL}/enrollments/course/${id}`, { headers: headers() }).then(r => r.json()),
+
+  enrollLearner: (learner_id, course_id) =>
+    fetch(`${BASE_URL}/enrollments`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ learner_id, course_id }),
+    }).then(r => r.json()),
+
+  unenrollLearner: (learner_id, course_id) =>
+    fetch(`${BASE_URL}/enrollments`, {
+      method: 'DELETE',
+      headers: headers(),
+      body: JSON.stringify({ learner_id, course_id }),
+    }).then(r => r.json()),
+
+    sendCheckinLinks: (courseId) =>
+    fetch(`${BASE_URL}/enrollments/send-checkin/${courseId}`, {
+      method: 'POST',
+      headers: headers(),
     }).then(r => r.json()),
 };
 

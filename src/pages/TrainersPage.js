@@ -54,6 +54,18 @@ function TrainersPage() {
     }
   };
 
+  const handleDelete = async (id) => {
+  if (!window.confirm('Are you sure you want to delete this trainer?')) return;
+  try {
+    await api.deleteTrainer(id);
+    api.getTrainers().then(data => {
+      if (Array.isArray(data)) setTrainers(data);
+    });
+  } catch (err) {
+    alert('Error deleting trainer.');
+  }
+};
+
   const initials = name =>
     name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
 
@@ -117,9 +129,16 @@ function TrainersPage() {
                       {trainer.type || 'External'}
                     </span>
                   </td>
-                  <td style={styles.td}>
-                    <button style={styles.editBtn} onClick={() => setSelected(trainer)}>✏️</button>
-                  </td>
+                  <td style={{ ...styles.td, display: 'flex', gap: '6px', alignItems: 'center' }}>
+  <button style={styles.editBtn} onClick={() => setSelected(trainer)}>✏️</button>
+  <button
+    style={{ ...styles.editBtn, background: '#fee2e2' }}
+    onClick={() => handleDelete(trainer.id)}
+    title="Delete trainer"
+  >
+    🗑️
+  </button>
+</td>
                 </tr>
               ))}
             </tbody>
