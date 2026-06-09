@@ -99,10 +99,14 @@ function DashboardPage() {
           </div>
 
           <div style={styles.statGrid}>
-            <StatCard label="Total Learners"       value={stats?.totalLearners || 0} />
-            <StatCard label="Total Courses"        value={stats?.totalCourses  || 0} />
-            <StatCard label="Total Training Hours" value={(stats?.totalCourses || 0) * 20 + 'h'} wide />
-          </div>
+  <StatCard label="Total Learners"         value={stats?.totalLearners || 0} />
+  <StatCard label="Total Courses"          value={stats?.totalCourses  || 0} />
+  <StatCard label="Learners Trained"
+    value={stats?.totalLearnersTrainedThisYear || 0}
+    sub={`Jan 1 – Today ${new Date().getFullYear()}`}
+  />
+  <StatCard label="Total Training Hours"   value={(stats?.totalCourses || 0) * 20 + 'h'} wide />
+</div>
 
           <div style={styles.chartsRow}>
 
@@ -246,11 +250,14 @@ function DashboardPage() {
   );
 }
 
-function StatCard({ label, value, wide }) {
+function StatCard({ label, value, wide, sub }) {
   return (
     <div style={{ ...styles.statCard, ...(wide ? styles.statCardWide : {}) }}>
       <div style={styles.statLabel}>{label}</div>
       <div style={styles.statValue}>{value}</div>
+      {sub && (
+        <div style={{ fontSize: '11px', color: '#9baabb', marginTop: '4px' }}>{sub}</div>
+      )}
     </div>
   );
 }
@@ -260,8 +267,7 @@ const styles = {
   mainGrid:       { display: 'grid', gridTemplateColumns: '1fr 420px', gap: '24px', alignItems: 'start' },
   leftCol:        { display: 'flex', flexDirection: 'column', gap: '20px' },
   rightCol:       { display: 'flex', flexDirection: 'column', gap: '20px' },
-  statGrid:       { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' },
-  statCard:       { background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '12px', padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: '8px' },
+statGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' },  statCard:       { background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '12px', padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: '8px' },
   statCardWide:   { gridColumn: 'span 2' },
   statLabel:      { fontSize: '13px', color: '#5a6878', fontWeight: '500' },
   statValue:      { fontSize: '42px', fontWeight: '800', color: '#051c2c', lineHeight: 1, letterSpacing: '-1px' },

@@ -25,6 +25,7 @@ function LearnersPage() {
   const [loading,        setLoading]        = useState(true);
   const [selected,       setSelected]       = useState(null);
   const [currentPage,    setCurrentPage]    = useState(1);
+  const [stats,          setStats]          = useState(null);
 
   const emptyForm = {
     empId: '', name: '', nationality: '', designation: '',
@@ -34,10 +35,11 @@ function LearnersPage() {
   const [editForm, setEditForm] = useState(emptyForm);
 
   useEffect(() => {
-    loadLearners();
-    api.getDepartments().then(data => { if (Array.isArray(data)) setDepartments(data); });
-    api.getCourses().then(data => { if (Array.isArray(data)) setAllCourses(data); });
-  }, []);
+  loadLearners();
+  api.getDepartments().then(data => { if (Array.isArray(data)) setDepartments(data); });
+  api.getCourses().then(data => { if (Array.isArray(data)) setAllCourses(data); });
+  api.getReports().then(data => { setStats(data); });
+}, []);
 
   const loadLearners = () => {
     api.getLearners()
@@ -238,13 +240,21 @@ function LearnersPage() {
       </div>
 
       {/* ── STATS ── */}
-      <div style={styles.statsRow}>
-        <MiniStat label="Learners Population"    value={activeTab === 'emirati' ? emiratiLearners.length : learners.length} />
-        <MiniStat label="Average Learning Hours" value={avgHours} />
-        <MiniStat label="Total Learning Hours"   value={avgHours * (activeTab === 'emirati' ? emiratiLearners.length : learners.length)} />
-        <MiniStat label="Total Learners"         value={activeTab === 'emirati' ? emiratiLearners.length : learners.length} />
-        <MiniStat label="Total Emirati Learners" value={emiratiLearners.length} />
-      </div>
+     <div style={styles.statsRow}>
+  <MiniStat label="Learners Population"    value={activeTab === 'emirati' ? emiratiLearners.length : learners.length} />
+  <MiniStat label="Average Learning Hours" value={avgHours} />
+  <MiniStat label="Total Learning Hours"   value={avgHours * (activeTab === 'emirati' ? emiratiLearners.length : learners.length)} />
+  <MiniStat label="Total Learners"         value={activeTab === 'emirati' ? emiratiLearners.length : learners.length} />
+  <MiniStat label="Total Emirati Learners" value={emiratiLearners.length} />
+  <MiniStat
+    label={activeTab === 'emirati' ? 'Emirati Trained This Year' : 'Learners Trained This Year'}
+    value={activeTab === 'emirati'
+      ? (stats?.emiratiTrainedThisYear || 0)
+      : (stats?.totalLearnersTrainedThisYear || 0)
+    }
+    sub={`Jan 1 – Today ${new Date().getFullYear()}`}
+  />
+</div>
 
       {/* ── GENDER CARDS ── */}
       <div style={styles.genderRow}>
@@ -787,11 +797,14 @@ function PersonIcon({ color }) {
   );
 }
 
-function MiniStat({ label, value }) {
+function MiniStat({ label, value, sub }) {
   return (
     <div style={styles.miniStat}>
       <div style={styles.miniStatLabel}>{label}</div>
       <div style={styles.miniStatValue}>{value}</div>
+      {sub && (
+        <div style={{ fontSize: '10px', color: '#9baabb', marginTop: '3px' }}>{sub}</div>
+      )}
     </div>
   );
 }
@@ -823,8 +836,7 @@ const styles = {
   tab:              { padding: '9px 20px', borderRadius: '8px', border: 'none', fontSize: '13px', fontWeight: '600', cursor: 'pointer', background: '#2a3f52', color: '#b6bdc2', fontFamily: 'Inter, sans-serif', display: 'flex', alignItems: 'center', gap: '6px' },
   tabActive:        { background: '#1a2f42', color: '#ffffff' },
   tabTick:          { background: '#16a34a', color: '#fff', borderRadius: '50%', width: '16px', height: '16px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px' },
-  statsRow:         { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '16px' },
-  miniStat:         { background: '#ffffff', borderRadius: '10px', border: '1px solid #e8ecf0', padding: '16px' },
+statsRow: { display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '12px', marginBottom: '16px' },  miniStat:         { background: '#ffffff', borderRadius: '10px', border: '1px solid #e8ecf0', padding: '16px' },
   miniStatLabel:    { fontSize: '11px', color: '#5a6878', fontWeight: '500', marginBottom: '6px' },
   miniStatValue:    { fontSize: '28px', fontWeight: '800', color: '#051c2c', lineHeight: 1 },
   genderRow:        { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' },
