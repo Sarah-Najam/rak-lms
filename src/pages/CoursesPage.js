@@ -255,7 +255,7 @@ function CoursesPage() {
           <div style={styles.statIcon}>⏳</div>
           <div style={styles.statNum}>{ongoingCourses}</div>
           <div style={styles.statLbl}>Ongoing Courses</div>
-          <div style={styles.statSub}>{ongoingCourses} courses in session now</div>
+          <div style={styles.statSub}>{ongoingCourses} in session now</div>
         </div>
         <div style={styles.statCard}>
           <div style={styles.statIcon}>✅</div>
@@ -264,7 +264,7 @@ function CoursesPage() {
           <div style={styles.statSub}>&nbsp;</div>
         </div>
         <div style={styles.statCard}>
-          <div style={styles.statIcon}>⭐</div>
+          <div style={styles.statIcon}>📅</div>
           <div style={styles.statNum}>{upcomingCourses.length}</div>
           <div style={styles.statLbl}>Upcoming Courses</div>
           <div style={styles.statSub}>Pending + Ongoing</div>
@@ -291,7 +291,8 @@ function CoursesPage() {
               <div key={course.id} style={styles.upcomingCard}>
                 <div style={styles.upcomingCardHeader}>
                   <span style={{
-                    padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600',
+                    padding: '3px 10px', borderRadius: '20px',
+                    fontSize: '11px', fontWeight: '600',
                     background: course.status === 'Ongoing' ? '#dbeafe' : '#fef9c3',
                     color:      course.status === 'Ongoing' ? '#1d4ed8' : '#a16207',
                   }}>
@@ -373,12 +374,13 @@ function CoursesPage() {
             )}
           </div>
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ ...styles.table, minWidth: '1000px' }}>
+            <table style={{ ...styles.table, minWidth: '1100px' }}>
               <thead>
                 <tr style={styles.theadRow}>
                   {['No.', 'Name', 'Institute', 'Trainer', 'Start Date', 'End Date',
                     'Type', 'Status', 'Enrolled', 'Attended',
-                    'Participation Rate', 'Total Learning Hours', ''].map(h => (
+                    'Participation Rate', 'Total Learning Hours',
+                    'Satisfaction Rate', ''].map(h => (
                     <th key={h} style={styles.th}>{h}</th>
                   ))}
                 </tr>
@@ -408,7 +410,7 @@ function CoursesPage() {
                       <td style={{ ...styles.td, color: '#5a6878', fontSize: '12px', minWidth: '120px' }}>
                         {course.institute || '—'}
                       </td>
-                      <td style={{ ...styles.td, minWidth: '120px' }}>
+                      <td style={{ ...styles.td, minWidth: '130px' }}>
                         {course.trainer_name ? (
                           <button
                             style={styles.trainerNameBtn}
@@ -454,6 +456,12 @@ function CoursesPage() {
                       </td>
                       <td style={{ ...styles.td, fontWeight: 600 }}>
                         {totalHours > 0 ? totalHours + 'h' : '—'}
+                      </td>
+                      <td style={styles.td}>
+                        {course.stars > 0
+                          ? <Stars value={course.stars} />
+                          : <span style={{ color: '#9baabb', fontSize: '12px' }}>—</span>
+                        }
                       </td>
                       <td style={{ ...styles.td, whiteSpace: 'nowrap' }}>
                         <div style={{ display: 'flex', gap: '6px' }}>
@@ -629,15 +637,27 @@ function CoursesPage() {
                   {selected.trainer_name ? (
                     <button
                       style={{
-                        background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-                        fontSize: '13px', fontWeight: '600', color: '#0369a1',
-                        fontFamily: 'Inter, sans-serif', textDecoration: 'underline',
+                        background: 'none', border: 'none', padding: 0,
+                        cursor: 'pointer', fontSize: '13px', fontWeight: '600',
+                        color: '#0369a1', fontFamily: 'Inter, sans-serif',
+                        textDecoration: 'underline',
                       }}
                       onClick={() => openTrainerPopup(selected.trainer_name)}
                     >
                       {selected.trainer_name}
                     </button>
                   ) : '—'}
+                </div>
+                <div>
+                  <div style={{ fontSize: '10px', fontWeight: '700', color: '#9baabb', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
+                    Satisfaction Rate
+                  </div>
+                  <div style={{ fontSize: '13px', fontWeight: '500', color: '#051c2c' }}>
+                    {selected.stars > 0
+                      ? <Stars value={selected.stars} />
+                      : '—'
+                    }
+                  </div>
                 </div>
               </div>
 
@@ -761,7 +781,7 @@ function CoursesPage() {
         </div>
       )}
 
-      {/* ── LEARNER MINI PROFILE FROM COURSE POPUP ── */}
+      {/* ── LEARNER MINI PROFILE ── */}
       {profileLearner && (
         <div style={{ ...styles.overlay, zIndex: 1100 }} onClick={() => setProfileLearner(null)}>
           <div style={{ ...styles.modal, maxWidth: '420px' }} onClick={e => e.stopPropagation()}>
@@ -829,9 +849,7 @@ function CoursesPage() {
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: '16px', fontWeight: '700', color: '#051c2c' }}>{trainerPopup.name}</div>
                       <div style={{ fontSize: '12px', color: '#5a6878', marginTop: '2px' }}>{trainerPopup.institute || '—'}</div>
-                      <div style={{ marginTop: '6px' }}>
-                        <Stars value={trainerPopup.rating} />
-                      </div>
+                      <div style={{ marginTop: '6px' }}><Stars value={trainerPopup.rating} /></div>
                     </div>
                     <span style={{
                       padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600',
@@ -852,7 +870,10 @@ function CoursesPage() {
                         Areas of Expertise
                       </div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                        {(Array.isArray(trainerPopup.expertise) ? trainerPopup.expertise : [trainerPopup.expertise]).map((e, i) => (
+                        {(Array.isArray(trainerPopup.expertise)
+                          ? trainerPopup.expertise
+                          : [trainerPopup.expertise]
+                        ).map((e, i) => (
                           <span key={i} style={{ background: '#f2f4f6', border: '1px solid #e8ecf0', borderRadius: '20px', padding: '3px 10px', fontSize: '12px', color: '#051c2c' }}>
                             {e}
                           </span>
@@ -976,7 +997,7 @@ const styles = {
   upcomingGrid:     { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '14px' },
   upcomingCard:     { background: '#f8f9fa', borderRadius: '10px', border: '1px solid #e8ecf0', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' },
   upcomingCardHeader:{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  upcomingCardTitle:{ fontSize: '13px', fontWeight: '700', color: '#051c2c', lineHeight: 1.4 },
+  upcomingCardTitle: { fontSize: '13px', fontWeight: '700', color: '#051c2c', lineHeight: 1.4 },
   upcomingCardMeta: { display: 'flex', flexDirection: 'column', gap: '6px' },
   upcomingMetaItem: { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#5a6878' },
   upcomingMetaIcon: { fontSize: '12px', flexShrink: 0 },
