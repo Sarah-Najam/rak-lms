@@ -4,6 +4,8 @@ import {
   ResponsiveContainer, BarChart, Bar,
   PieChart, Pie, Cell,
 } from 'recharts';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 import api from '../api';
 
 const satisfactionData = [
@@ -19,43 +21,175 @@ function ReportsPage() {
 
   const [stats,        setStats]        = useState(null);
   const [departments,  setDepartments]  = useState([]);
+  const [learners,     setLearners]     = useState([]);
   const [courses,      setCourses]      = useState([]);
   const [loading,      setLoading]      = useState(true);
-  const [startDate,    setStartDate]    = useState('');
-  const [endDate,      setEndDate]      = useState('');
+  const [exporting,    setExporting]    = useState(false);
+  const [searchMonth,  setSearchMonth]  = useState('');
 
   useEffect(() => {
     Promise.all([
       api.getReports(),
       api.getDepartments(),
+      api.getLearners(),
       api.getCourses(),
-    ]).then(([s, d, c]) => {
+    ]).then(([s, d, l, c]) => {
       setStats(s);
       if (Array.isArray(d)) setDepartments(d);
+      if (Array.isArray(l)) setLearners(l);
       if (Array.isArray(c)) setCourses(c);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
 
-  // ── DATE FILTER ────────────────────────────────────────────
-  const filteredCourses = courses.filter(c => {
-    if (!startDate && !endDate) return true;
-    const courseStart = c.start_date ? new Date(c.start_date) : null;
-    const courseEnd   = c.end_date   ? new Date(c.end_date)   : null;
-    const from        = startDate    ? new Date(startDate)     : null;
-    const to          = endDate      ? new Date(endDate)       : null;
-    if (from && courseStart && courseStart < from) return false;
-    if (to   && courseEnd   && courseEnd   > to)   return false;
-    return true;
-  });
+  const handleExportExcel = async () => {
+    setExporting(true);
+    try {
+      const wb = XLSX.utils.book_new();
 
-  const filteredCompleted = filteredCourses.filter(c => c.status === 'Completed').length;
-  const filteredOngoing   = filteredCourses.filter(c => c.status === 'Ongoing').length;
-  const filteredPending   = filteredCourses.filter(c => c.status === 'Pending').length;
+      // ── SHEET 1: Summary ──────────────────────────────────
+      const summaryData = [
+        ['RAK Properties LMS — Report Export'],
+        ['Generated on', new Date().toLocaleDateString('en-GB')],
+        [],
+        ['METRIC', 'VALUE'],
+        ['Total Population',    stats?.totalPopulation  || 0],
+        ['Total Learners',      stats?.totalLearners    || 0],
+        ['Male Learners',       stats?.maleLearners     || 0],
+        ['Female Learners',     stats?.femaleLearners   || 0],
+        ['Emirati Learners',    stats?.emiratiLearners  || 0],
+        ['Total Departments',   stats?.totalDepts       || 0],
+        ['Total Courses',       stats?.totalCourses     || 0],
+        ['Completed Courses',   stats?.completedCourses || 0],
+        ['Ongoing Courses',     stats?.ongoingCourses   || 0],
+        ['Pending Courses',     stats?.pendingCourses   || 0],
+        ['Average NPS Score',   stats?.avgNps           || 0],
+      ];
+      const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+      wsSummary['!cols'] = [{ wch: 30 }, { wch: 20 }];
+      XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
 
-  const handleClearFilter = () => {
-    setStartDate('');
-    setEndDate('');
+      // ── SHEET 2: Learners ─────────────────────────────────
+      const learnersHeaders = [
+        'Emp ID', 'Name', 'Gender', 'Nationality',
+        'Department', 'Designation', 'Email', 'Status', 'Joined',
+      ];
+      const learnersRows = learners.map(l => [
+        l.emp_id        || '',
+        l.name          || '',
+        l.gender        || '',
+        l.nationality   || '',
+        l.department_name || '',
+        l.designation   || '',
+        l.email         || '',
+        l.status        || '',
+        l.created_at
+          ? new Date(l.created_at).toLocaleDateString('en-GB') : '',
+      ]);
+      const wsLearners = XLSX.utils.aoa_to_sheet([learnersHeaders, ...learnersRows]);
+      wsLearners['!cols'] = [
+        { wch: 12 }, { wch: 25 }, { wch: 10 }, { wch: 15 },
+        { wch: 22 }, { wch: 25 }, { wch: 30 }, { wch: 12 }, { wch: 12 },
+      ];
+      XLSX.utils.book_append_sheet(wb, wsLearners, 'Learners');
+
+      // ── SHEET 3: Courses ──────────────────────────────────
+      const coursesHeaders = [
+        'Title', 'Institute', 'Trainer', 'Type', 'Status',
+        'Start Date', 'End Date', 'Duration (Hours)', 'Duration (Days)',
+        'Max Learners', 'Enrolled', 'Attended', 'Participation Rate',
+        'Cost Estimated (AED)', 'Budget Realized (AED)',
+        'PO #', 'PR #', 'Venue',
+      ];
+      const coursesRows = courses.map(c => {
+        const enrolled = +c.enrolled_count || 0;
+        const attended = +c.attended_count || 0;
+        const rate     = enrolled > 0
+          ? Math.round(attended / enrolled * 100) + '%' : '—';
+        return [
+          c.title              || '',
+          c.institute          || '',
+          c.trainer_name       || '',
+          c.type               || '',
+          c.status             || '',
+          c.start_date
+            ? new Date(c.start_date).toLocaleDateString('en-GB') : '',
+          c.end_date
+            ? new Date(c.end_date).toLocaleDateString('en-GB') : '',
+          c.duration_hours     || 0,
+          c.duration_days      || 0,
+          c.max_learners       || '',
+          enrolled,
+          attended,
+          rate,
+          +c.cost_estimated    || 0,
+          +c.budget_realized   || 0,
+          c.po_number          || '',
+          c.pr_number          || '',
+          c.venue              || '',
+        ];
+      });
+      const wsCourses = XLSX.utils.aoa_to_sheet([coursesHeaders, ...coursesRows]);
+      wsCourses['!cols'] = [
+        { wch: 35 }, { wch: 20 }, { wch: 20 }, { wch: 12 }, { wch: 12 },
+        { wch: 12 }, { wch: 12 }, { wch: 18 }, { wch: 16 }, { wch: 14 },
+        { wch: 10 }, { wch: 10 }, { wch: 18 }, { wch: 22 }, { wch: 22 },
+        { wch: 15 }, { wch: 15 }, { wch: 25 },
+      ];
+      XLSX.utils.book_append_sheet(wb, wsCourses, 'Courses');
+
+      // ── SHEET 4: Departments ──────────────────────────────
+      const deptsHeaders = [
+        'Department', 'Head of Department', 'Designation',
+        'Population', 'Active Learners', 'Total Enrollments',
+      ];
+      const deptsRows = departments.map(d => [
+        d.name          || '',
+        d.hod           || '',
+        d.designation   || '',
+        d.population    || 0,
+        d.learner_count || 0,
+        d.course_count  || 0,
+      ]);
+      const wsDepts = XLSX.utils.aoa_to_sheet([deptsHeaders, ...deptsRows]);
+      wsDepts['!cols'] = [
+        { wch: 25 }, { wch: 25 }, { wch: 20 },
+        { wch: 12 }, { wch: 16 }, { wch: 20 },
+      ];
+      XLSX.utils.book_append_sheet(wb, wsDepts, 'Departments');
+
+      // ── SHEET 5: Emirati Learners ─────────────────────────
+      const emiratiLearners = learners.filter(l => l.nationality === 'Emirati');
+      const emiratiHeaders  = [
+        'Emp ID', 'Name', 'Gender', 'Department', 'Designation', 'Status',
+      ];
+      const emiratiRows = emiratiLearners.map(l => [
+        l.emp_id          || '',
+        l.name            || '',
+        l.gender          || '',
+        l.department_name || '',
+        l.designation     || '',
+        l.status          || '',
+      ]);
+      const wsEmirati = XLSX.utils.aoa_to_sheet([emiratiHeaders, ...emiratiRows]);
+      wsEmirati['!cols'] = [
+        { wch: 12 }, { wch: 25 }, { wch: 10 },
+        { wch: 22 }, { wch: 25 }, { wch: 12 },
+      ];
+      XLSX.utils.book_append_sheet(wb, wsEmirati, 'Emirati Learners');
+
+      // ── Save the file ─────────────────────────────────────
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob        = new Blob([excelBuffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const fileName = `RAK_LMS_Report_${new Date().toLocaleDateString('en-GB').replace(/\//g, '-')}.xlsx`;
+      saveAs(blob, fileName);
+
+    } catch (err) {
+      alert('Error generating Excel file: ' + err.message);
+    }
+    setExporting(false);
   };
 
   if (loading) return (
@@ -77,36 +211,30 @@ function ReportsPage() {
   return (
     <div style={styles.page}>
 
-      {/* ── DATE FILTER BAR ── */}
-      <div style={styles.filterBar}>
-        <div style={styles.filterGroup}>
-          <label style={styles.filterLabel}>Start Date</label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={e => setStartDate(e.target.value)}
-            style={styles.dateInput}
-          />
-        </div>
-        <div style={styles.filterGroup}>
-          <label style={styles.filterLabel}>End Date</label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={e => setEndDate(e.target.value)}
-            style={styles.dateInput}
-          />
-        </div>
-        {(startDate || endDate) && (
-          <button style={styles.clearBtn} onClick={handleClearFilter}>
-            ✕ Clear Filter
-          </button>
-        )}
-        {(startDate || endDate) && (
-          <div style={styles.filterBadge}>
-            Showing {filteredCourses.length} of {courses.length} courses
+      {/* ── PAGE HEADER ── */}
+      <div style={styles.pageHeader}>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={styles.searchWrap}>
+            <span>🔍</span>
+            <input
+              style={styles.searchInput}
+              placeholder="Search by month"
+              value={searchMonth}
+              onChange={e => setSearchMonth(e.target.value)}
+            />
           </div>
-        )}
+          <div style={styles.searchWrap}>
+            <span>🔍</span>
+            <input style={styles.searchInput} placeholder="Search by Date" type="date" />
+          </div>
+        </div>
+        <button
+          style={styles.exportBtn}
+          onClick={handleExportExcel}
+          disabled={exporting}
+        >
+          {exporting ? '⏳ Exporting...' : '📥 Export to Excel'}
+        </button>
       </div>
 
       {/* ── STAT CARDS ── */}
@@ -120,24 +248,25 @@ function ReportsPage() {
       {/* ── ROW 2 ── */}
       <div style={styles.row2}>
 
-        {/* Emirati Learners Donut */}
         <div style={styles.card}>
           <div style={styles.cardTitle}>Emirati Learners</div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
             <div style={{ position: 'relative' }}>
               <PieChart width={160} height={160}>
                 <Pie
-                  data={emiratiDonutData}
-                  cx={75} cy={75}
+                  data={emiratiDonutData} cx={75} cy={75}
                   innerRadius={50} outerRadius={75}
-                  dataKey="value"
-                  startAngle={90} endAngle={-270}
+                  dataKey="value" startAngle={90} endAngle={-270}
                 >
                   <Cell fill="#051c2c" />
                   <Cell fill="#b6bdc2" />
                 </Pie>
               </PieChart>
-              <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{
+                position: 'absolute', top: '50%', left: '50%',
+                transform: 'translate(-50%,-50%)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
                 <span style={{ fontSize: '22px', fontWeight: '800', color: '#051c2c' }}>
                   {stats?.emiratiLearners || 0}
                 </span>
@@ -156,24 +285,16 @@ function ReportsPage() {
           </div>
         </div>
 
-        {/* Total Courses — filtered by date */}
         <div style={styles.card}>
-          <div style={styles.cardTitle}>
-            Total Courses
-            {(startDate || endDate) && (
-              <span style={{ fontSize: '11px', color: '#9baabb', marginLeft: '6px', fontWeight: '400' }}>
-                (filtered)
-              </span>
-            )}
-          </div>
+          <div style={styles.cardTitle}>Total Courses</div>
           <div style={{ fontSize: '36px', fontWeight: '800', color: '#051c2c', lineHeight: 1, marginBottom: '14px' }}>
-            {filteredCourses.length}
+            {stats?.totalCourses || 0}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {[
-              ['Completed', filteredCompleted, '#051c2c'],
-              ['Ongoing',   filteredOngoing,   '#5a6878'],
-              ['Upcoming',  filteredPending,   '#b6bdc2'],
+              ['Completed', stats?.completedCourses || 0, '#051c2c'],
+              ['Ongoing',   stats?.ongoingCourses   || 0, '#5a6878'],
+              ['Upcoming',  stats?.pendingCourses   || 0, '#b6bdc2'],
             ].map(([l, v, c]) => (
               <div key={l} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: c, flexShrink: 0 }} />
@@ -184,7 +305,6 @@ function ReportsPage() {
           </div>
         </div>
 
-        {/* NPS Score */}
         <div style={styles.card}>
           <div style={styles.cardTitle}>NPS Score</div>
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '10px 0' }}>
@@ -198,16 +318,18 @@ function ReportsPage() {
           </div>
         </div>
 
-        {/* Total Departments */}
         <div style={styles.card}>
           <div style={styles.cardTitle}>Total Departments</div>
           <div style={{ fontSize: '36px', fontWeight: '800', color: '#051c2c', lineHeight: 1, marginBottom: '8px' }}>
             {stats?.totalDepts || 0}
           </div>
           <ResponsiveContainer width="100%" height={100}>
-            <BarChart data={deptRatingsData} layout="vertical" barSize={8} margin={{ left: 0, right: 10, top: 0, bottom: 0 }}>
+            <BarChart data={deptRatingsData} layout="vertical" barSize={8}
+              margin={{ left: 0, right: 10, top: 0, bottom: 0 }}>
               <XAxis type="number" hide />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: '#9baabb' }} axisLine={false} tickLine={false} width={40} />
+              <YAxis type="category" dataKey="name"
+                tick={{ fontSize: 10, fill: '#9baabb' }}
+                axisLine={false} tickLine={false} width={40} />
               <Bar dataKey="count" fill="#051c2c" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -218,7 +340,6 @@ function ReportsPage() {
       {/* ── ROW 3 ── */}
       <div style={styles.row3}>
 
-        {/* Most Active Departments */}
         <div style={styles.card}>
           <div style={styles.cardTitle}>Most Active Departments</div>
           {departments.slice(0, 5).map((d, i) => (
@@ -226,21 +347,25 @@ function ReportsPage() {
               <span style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#f2f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '700', color: '#5a6878', flexShrink: 0 }}>
                 {i + 1}
               </span>
-              <span style={{ fontSize: '13px', fontWeight: '500', color: '#051c2c', flex: 1 }}>{d.name}</span>
-              <span style={{ fontSize: '11px', color: '#9baabb' }}>{d.learner_count || 0} learners</span>
+              <span style={{ fontSize: '13px', fontWeight: '500', color: '#051c2c', flex: 1 }}>
+                {d.name}
+              </span>
+              <span style={{ fontSize: '11px', color: '#9baabb' }}>
+                {d.learner_count || 0} learners
+              </span>
             </div>
           ))}
         </div>
 
-        {/* Satisfaction Score */}
         <div style={{ ...styles.card, flex: 2 }}>
-          <div style={styles.cardTitle}>Satisfaction Score</div>
+          <div style={styles.cardTitle}>Satisfaction Score Trend</div>
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={satisfactionData}>
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9baabb' }} axisLine={false} tickLine={false} />
               <YAxis domain={[20, 80]} tick={{ fontSize: 11, fill: '#9baabb' }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={{ fontSize: '12px', borderRadius: '8px', border: '1px solid #e8ecf0' }} />
-              <Line type="monotone" dataKey="score" stroke="#051c2c" strokeWidth={2.5} dot={{ fill: '#051c2c', r: 3 }} activeDot={{ r: 5 }} />
+              <Line type="monotone" dataKey="score" stroke="#051c2c" strokeWidth={2.5}
+                dot={{ fill: '#051c2c', r: 3 }} activeDot={{ r: 5 }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -261,18 +386,16 @@ function StatCard({ label, value }) {
 }
 
 const styles = {
-  page:        { padding: '30px', minHeight: '100vh', background: '#f2f4f6', fontFamily: 'Inter, sans-serif' },
-  filterBar:   { display: 'flex', alignItems: 'flex-end', gap: '16px', marginBottom: '22px', background: '#ffffff', borderRadius: '12px', padding: '16px 20px', border: '1px solid #e8ecf0', flexWrap: 'wrap' },
-  filterGroup: { display: 'flex', flexDirection: 'column', gap: '5px' },
-  filterLabel: { fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px' },
-  dateInput:   { padding: '9px 12px', border: '1.5px solid #e8ecf0', borderRadius: '8px', fontSize: '13px', outline: 'none', background: '#f8f9fa', color: '#051c2c', fontFamily: 'Inter, sans-serif', cursor: 'pointer' },
-  clearBtn:    { padding: '9px 16px', background: '#fee2e2', color: '#991b1b', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', fontFamily: 'Inter, sans-serif', alignSelf: 'flex-end' },
-  filterBadge: { padding: '9px 16px', background: '#dbeafe', color: '#1d4ed8', borderRadius: '8px', fontSize: '12px', fontWeight: '600', alignSelf: 'flex-end' },
-  statGrid:    { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px', marginBottom: '20px' },
-  row2:        { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '20px' },
-  row3:        { display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '16px' },
-  card:        { background: '#ffffff', borderRadius: '12px', border: '1px solid #e8ecf0', padding: '20px' },
-  cardTitle:   { fontSize: '14px', fontWeight: '700', color: '#051c2c', marginBottom: '14px', paddingBottom: '10px', borderBottom: '1px solid #f0f2f4', display: 'flex', alignItems: 'center' },
+  page:       { padding: '30px', minHeight: '100vh', background: '#f2f4f6', fontFamily: 'Inter, sans-serif' },
+  pageHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '22px', flexWrap: 'wrap', gap: '12px' },
+  searchWrap: { display: 'flex', alignItems: 'center', background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '8px', padding: '0 12px', gap: '6px' },
+  searchInput:{ border: 'none', outline: 'none', fontSize: '13px', padding: '9px 0', width: '160px', background: 'transparent', fontFamily: 'Inter, sans-serif' },
+  exportBtn:  { background: '#051c2c', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: 'Inter, sans-serif', display: 'flex', alignItems: 'center', gap: '6px' },
+  statGrid:   { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px', marginBottom: '20px' },
+  row2:       { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '20px' },
+  row3:       { display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '16px' },
+  card:       { background: '#ffffff', borderRadius: '12px', border: '1px solid #e8ecf0', padding: '20px' },
+  cardTitle:  { fontSize: '14px', fontWeight: '700', color: '#051c2c', marginBottom: '14px', paddingBottom: '10px', borderBottom: '1px solid #f0f2f4' },
 };
 
 export default ReportsPage;

@@ -223,6 +223,31 @@ getEnrollmentsByLearner: (id) =>
       method: 'POST',
       headers: headers(),
     }).then(r => r.json()),
+    updateTrainer: (id, data) =>
+    fetch(`${BASE_URL}/trainers/${id}`, {
+      method: 'PUT',
+      headers: headers(),
+      body: JSON.stringify(data),
+    }).then(r => r.json()),
+
+  deleteTrainer: (id) =>
+    fetch(`${BASE_URL}/trainers/${id}`, {
+      method: 'DELETE',
+      headers: headers(),
+    }).then(r => r.json()),
+
+  getUsers: () =>
+    fetch(`${BASE_URL}/auth/users`, { headers: headers() }).then(r => r.json()),
+
+  verifyInvite: (token) =>
+    fetch(`${BASE_URL}/auth/verify-invite?token=${token}`).then(r => r.json()),
+
+  setPassword: (token, password) =>
+    fetch(`${BASE_URL}/auth/set-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, password }),
+    }).then(r => r.json()),
 };
 
 export default api;

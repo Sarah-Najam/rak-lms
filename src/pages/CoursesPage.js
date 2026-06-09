@@ -17,6 +17,7 @@ function CoursesPage() {
   const [enrolledLearners, setEnrolledLearners] = useState([]);
   const [enrollLoading,    setEnrollLoading]    = useState(false);
   const [profileLearner,   setProfileLearner]   = useState(null);
+  const [trainerPopup,     setTrainerPopup]     = useState(null);
 
   const emptyForm = {
     title: '', description: '', duration: '', institute: '',
@@ -42,6 +43,10 @@ function CoursesPage() {
       .catch(() => setLoading(false));
   };
 
+  const upcomingCourses = courses.filter(c =>
+    c.status === 'Pending' || c.status === 'Ongoing'
+  );
+
   const totalCourses     = courses.length;
   const ongoingCourses   = courses.filter(c => c.status === 'Ongoing').length;
   const completedCourses = courses.filter(c => c.status === 'Completed').length;
@@ -55,16 +60,12 @@ function CoursesPage() {
       )
     : 0;
 
-  const favouriteCourses = courses
-    .filter(c => +c.stars >= 4.5)
-    .map(c => c.title.split(' ').slice(0, 2).join(' '));
-
   const filtered = courses.filter(c =>
     c.title.toLowerCase().includes(searchTitle.toLowerCase())
   );
 
   const totalFiltered = filtered.length;
-  const paginated     = filtered.slice(
+  const paginated = filtered.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
@@ -85,6 +86,15 @@ function CoursesPage() {
       setEnrolledLearners([]);
     }
     setEnrollLoading(false);
+  };
+
+  const openTrainerPopup = (trainerName) => {
+    if (!trainerName) return;
+    const trainer = trainers.find(t =>
+      t.name.toLowerCase() === trainerName.toLowerCase()
+    );
+    if (trainer) setTrainerPopup(trainer);
+    else setTrainerPopup({ name: trainerName, notFound: true });
   };
 
   const handleSave = async () => {
@@ -193,17 +203,6 @@ function CoursesPage() {
       })
     : '—';
 
-  const Stars = ({ value }) => (
-    <span>
-      {Array.from({ length: 5 }).map((_, i) => (
-        <span key={i} style={{
-          color: i < Math.round(value) ? '#c8973a' : '#d4d9dd',
-          fontSize: '13px',
-        }}>★</span>
-      ))}
-    </span>
-  );
-
   const StatusBadge = ({ status }) => {
     const colors = {
       Completed:   { bg: '#dcfce7', color: '#15803d' },
@@ -224,6 +223,22 @@ function CoursesPage() {
       </span>
     );
   };
+
+  const Stars = ({ value }) => (
+    <span>
+      {[1,2,3,4,5].map(i => (
+        <span key={i} style={{
+          color: i <= Math.round(value) ? '#c8973a' : '#d4d9dd',
+          fontSize: '13px',
+        }}>★</span>
+      ))}
+      {value > 0 && (
+        <span style={{ fontSize: '11px', color: '#9baabb', marginLeft: '3px' }}>
+          {value}
+        </span>
+      )}
+    </span>
+  );
 
   return (
     <div style={styles.page}>
@@ -250,23 +265,81 @@ function CoursesPage() {
         </div>
         <div style={styles.statCard}>
           <div style={styles.statIcon}>⭐</div>
-          <div style={{ fontSize: '13px', marginTop: '8px', minHeight: '30px' }}>
-            {favouriteCourses.length > 0
-              ? favouriteCourses.map((t, i) => (
-                  <div key={i} style={{ fontSize: '12px', color: '#ffffff', fontWeight: 500 }}>{t}</div>
-                ))
-              : <span style={{ color: '#b6bdc2', fontSize: '12px' }}>No ratings yet</span>
-            }
-          </div>
-          <div style={styles.statLbl}>Most Favourite</div>
+          <div style={styles.statNum}>{upcomingCourses.length}</div>
+          <div style={styles.statLbl}>Upcoming Courses</div>
+          <div style={styles.statSub}>Pending + Ongoing</div>
         </div>
         <div style={styles.statCard}>
           <div style={styles.statIcon}>👥</div>
           <div style={styles.statNum}>{avgParticipation}%</div>
-          <div style={styles.statLbl}>Attendance Rate</div>
+          <div style={styles.statLbl}>Participation Rate</div>
           <div style={styles.statSub}>Attended ÷ Enrolled</div>
         </div>
       </div>
+
+      {/* ── UPCOMING COURSES SECTION ── */}
+      {upcomingCourses.length > 0 && (
+        <div style={styles.upcomingSection}>
+          <div style={styles.upcomingHeader}>
+            <span style={styles.upcomingTitle}>Upcoming & Ongoing Courses</span>
+            <span style={{ fontSize: '12px', color: '#9baabb' }}>
+              {upcomingCourses.length} course{upcomingCourses.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <div style={styles.upcomingGrid}>
+            {upcomingCourses.map(course => (
+              <div key={course.id} style={styles.upcomingCard}>
+                <div style={styles.upcomingCardHeader}>
+                  <span style={{
+                    padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600',
+                    background: course.status === 'Ongoing' ? '#dbeafe' : '#fef9c3',
+                    color:      course.status === 'Ongoing' ? '#1d4ed8' : '#a16207',
+                  }}>
+                    {course.status}
+                  </span>
+                  <span style={{ fontSize: '11px', color: '#9baabb' }}>
+                    {course.type || 'External'}
+                  </span>
+                </div>
+                <div style={styles.upcomingCardTitle}>{course.title}</div>
+                <div style={styles.upcomingCardMeta}>
+                  <div style={styles.upcomingMetaItem}>
+                    <span style={styles.upcomingMetaIcon}>👤</span>
+                    <button
+                      style={{
+                        background: 'none', border: 'none', padding: 0,
+                        fontSize: '12px', color: '#0369a1', cursor: 'pointer',
+                        fontFamily: 'Inter, sans-serif', textDecoration: 'underline',
+                      }}
+                      onClick={() => openTrainerPopup(course.trainer_name)}
+                    >
+                      {course.trainer_name || '—'}
+                    </button>
+                  </div>
+                  <div style={styles.upcomingMetaItem}>
+                    <span style={styles.upcomingMetaIcon}>📅</span>
+                    <span>{fmtDate(course.start_date)}</span>
+                  </div>
+                  <div style={styles.upcomingMetaItem}>
+                    <span style={styles.upcomingMetaIcon}>📍</span>
+                    <span>{course.venue || '—'}</span>
+                  </div>
+                  <div style={styles.upcomingMetaItem}>
+                    <span style={styles.upcomingMetaIcon}>👥</span>
+                    <span>{course.enrolled_count || 0} enrolled</span>
+                  </div>
+                </div>
+                <button
+                  style={styles.upcomingViewBtn}
+                  onClick={() => openDetail(course)}
+                >
+                  View Details →
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── CONTROLS ── */}
       <div style={styles.controls}>
@@ -299,15 +372,13 @@ function CoursesPage() {
               </span>
             )}
           </div>
-
-          {/* Horizontal scroll wrapper */}
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ ...styles.table, minWidth: '1100px' }}>
+            <table style={{ ...styles.table, minWidth: '1000px' }}>
               <thead>
                 <tr style={styles.theadRow}>
-                  {['No.','Name','Institute','Start Date','End Date',
-                    'Type','Status','Enrolled','Attended','Attendance %',
-                    'Total Learning Hours','Feedback',''].map(h => (
+                  {['No.', 'Name', 'Institute', 'Trainer', 'Start Date', 'End Date',
+                    'Type', 'Status', 'Enrolled', 'Attended',
+                    'Participation Rate', 'Total Learning Hours', ''].map(h => (
                     <th key={h} style={styles.th}>{h}</th>
                   ))}
                 </tr>
@@ -326,7 +397,7 @@ function CoursesPage() {
                       <td style={styles.td}>
                         {(currentPage - 1) * ITEMS_PER_PAGE + i + 1}
                       </td>
-                      <td style={{ ...styles.td, minWidth: '200px' }}>
+                      <td style={{ ...styles.td, minWidth: '180px' }}>
                         <button
                           style={styles.courseNameBtn}
                           onClick={() => openDetail(course)}
@@ -336,6 +407,16 @@ function CoursesPage() {
                       </td>
                       <td style={{ ...styles.td, color: '#5a6878', fontSize: '12px', minWidth: '120px' }}>
                         {course.institute || '—'}
+                      </td>
+                      <td style={{ ...styles.td, minWidth: '120px' }}>
+                        {course.trainer_name ? (
+                          <button
+                            style={styles.trainerNameBtn}
+                            onClick={() => openTrainerPopup(course.trainer_name)}
+                          >
+                            {course.trainer_name}
+                          </button>
+                        ) : '—'}
                       </td>
                       <td style={{ ...styles.td, fontSize: '12px', color: '#5a6878', whiteSpace: 'nowrap' }}>
                         {fmtDate(course.start_date)}
@@ -373,12 +454,6 @@ function CoursesPage() {
                       </td>
                       <td style={{ ...styles.td, fontWeight: 600 }}>
                         {totalHours > 0 ? totalHours + 'h' : '—'}
-                      </td>
-                      <td style={styles.td}>
-                        {course.stars > 0
-                          ? <Stars value={course.stars} />
-                          : <span style={{ color: '#9baabb', fontSize: '12px' }}>—</span>
-                        }
                       </td>
                       <td style={{ ...styles.td, whiteSpace: 'nowrap' }}>
                         <div style={{ display: 'flex', gap: '6px' }}>
@@ -459,16 +534,19 @@ function CoursesPage() {
 
       {/* ── COURSE DETAIL POPUP ── */}
       {selected && (
-        <div style={styles.overlay} onClick={() => { setSelected(null); setProfileLearner(null); }}>
+        <div style={styles.overlay} onClick={() => {
+          setSelected(null); setProfileLearner(null);
+        }}>
           <div style={{ ...styles.modal, maxWidth: '820px' }}
             onClick={e => e.stopPropagation()}>
             <div style={styles.modalHeader}>
               <span style={styles.modalTitle}>{selected.title}</span>
-              <button style={styles.modalClose} onClick={() => { setSelected(null); setProfileLearner(null); }}>×</button>
+              <button style={styles.modalClose} onClick={() => {
+                setSelected(null); setProfileLearner(null);
+              }}>×</button>
             </div>
             <div style={styles.modalBody}>
 
-              {/* Cover */}
               <div style={styles.coverImg}>
                 <div style={{ fontSize: '40px' }}>📚</div>
               </div>
@@ -481,10 +559,11 @@ function CoursesPage() {
                   ['Training Hours',       (selected.duration_hours || 0) + 'h'],
                   ['Enrolled',             selected.enrolled_count  || 0],
                   ['Attended',             selected.attended_count  || 0],
-                  ['Attendance Rate',      selected.enrolled_count > 0
-                    ? Math.round((+selected.attended_count || 0) / (+selected.enrolled_count) * 100) + '%'
-                    : '—'],
-                  ['Total Learning Hours', ((+selected.duration_hours || 0) * (+selected.attended_count || 0)) + 'h'],
+                  ['Participation Rate',   selected.enrolled_count > 0
+                    ? Math.round((+selected.attended_count || 0) /
+                      (+selected.enrolled_count) * 100) + '%' : '—'],
+                  ['Total Learning Hours', ((+selected.duration_hours || 0) *
+                    (+selected.attended_count || 0)) + 'h'],
                   ['Status',               selected.status],
                 ].map(([k, v]) => (
                   <div key={k} style={styles.infoBarItem}>
@@ -499,7 +578,7 @@ function CoursesPage() {
                 ))}
               </div>
 
-              {/* Attendance progress bar */}
+              {/* Progress bar */}
               {(+selected.enrolled_count || 0) > 0 && (
                 <div style={{ marginBottom: '20px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
@@ -513,9 +592,9 @@ function CoursesPage() {
                   <div style={{ height: '8px', background: '#e8ecf0', borderRadius: '4px', overflow: 'hidden' }}>
                     <div style={{
                       height: '100%',
-                      width: Math.round((+selected.attended_count || 0) / (+selected.enrolled_count) * 100) + '%',
-                      background: '#051c2c',
-                      borderRadius: '4px',
+                      width: Math.round((+selected.attended_count || 0) /
+                        (+selected.enrolled_count) * 100) + '%',
+                      background: '#051c2c', borderRadius: '4px',
                     }} />
                   </div>
                 </div>
@@ -531,7 +610,6 @@ function CoursesPage() {
                   ['Cost (AED)',      'AED ' + (+selected.cost_estimated || 0).toLocaleString()],
                   ['Budget Realized', selected.budget_realized
                     ? 'AED ' + (+selected.budget_realized).toLocaleString() : '—'],
-                  ['Trainer',         selected.trainer_name || '—'],
                   ['Venue',           selected.venue || '—'],
                   ['PO #',            selected.po_number || '—'],
                   ['PR #',            selected.pr_number || '—'],
@@ -541,14 +619,29 @@ function CoursesPage() {
                     <div style={{ fontSize: '10px', fontWeight: '700', color: '#9baabb', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
                       {k}
                     </div>
-                    <div style={{ fontSize: '13px', fontWeight: '500', color: '#051c2c' }}>
-                      {v}
-                    </div>
+                    <div style={{ fontSize: '13px', fontWeight: '500', color: '#051c2c' }}>{v}</div>
                   </div>
                 ))}
+                <div>
+                  <div style={{ fontSize: '10px', fontWeight: '700', color: '#9baabb', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
+                    Trainer
+                  </div>
+                  {selected.trainer_name ? (
+                    <button
+                      style={{
+                        background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                        fontSize: '13px', fontWeight: '600', color: '#0369a1',
+                        fontFamily: 'Inter, sans-serif', textDecoration: 'underline',
+                      }}
+                      onClick={() => openTrainerPopup(selected.trainer_name)}
+                    >
+                      {selected.trainer_name}
+                    </button>
+                  ) : '—'}
+                </div>
               </div>
 
-              {/* ── ENROLLED LEARNERS SECTION ── */}
+              {/* Enrolled Learners Section */}
               <div style={{ marginTop: '24px' }}>
                 <div style={styles.sectionLabel}>
                   Enrolled Learners
@@ -630,11 +723,7 @@ function CoursesPage() {
                     </table>
                   </div>
                 ) : (
-                  <div style={{
-                    padding: '20px', background: '#f8f9fa', borderRadius: '8px',
-                    border: '1px solid #e8ecf0', textAlign: 'center',
-                    fontSize: '13px', color: '#9baabb',
-                  }}>
+                  <div style={{ padding: '20px', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #e8ecf0', textAlign: 'center', fontSize: '13px', color: '#9baabb' }}>
                     No learners enrolled in this course yet.
                   </div>
                 )}
@@ -642,17 +731,22 @@ function CoursesPage() {
 
             </div>
             <div style={styles.modalFooter}>
-              <button style={styles.cancelBtn} onClick={() => { setSelected(null); setProfileLearner(null); }}>Close</button>
+              <button style={styles.cancelBtn} onClick={() => {
+                setSelected(null); setProfileLearner(null);
+              }}>
+                Close
+              </button>
               <button
                 style={{ ...styles.cancelBtn, background: '#dbeafe', color: '#1d4ed8', border: 'none' }}
                 onClick={async () => {
                   const result = await api.sendCheckinLinks(selected.id);
-if (result.links && result.links.length > 0) {
-  const linkList = result.links.map(l => `${l.name}: ${l.url}`).join('\n\n');
-  alert(`✅ Check-in links generated for ${result.links.length} learners!\n\nLinks (share manually until email is configured):\n\n${linkList}`);
-} else {
-  alert(result.message || 'No learners found.');
-}                }}
+                  if (result.links && result.links.length > 0) {
+                    const linkList = result.links.map(l => `${l.name}: ${l.url}`).join('\n\n');
+                    alert(`✅ Check-in links generated for ${result.links.length} learners!\n\nLinks:\n\n${linkList}`);
+                  } else {
+                    alert(result.message || 'No learners found.');
+                  }
+                }}
               >
                 📧 Send Check-in Links
               </button>
@@ -676,17 +770,8 @@ if (result.links && result.links.length > 0) {
               <button style={styles.modalClose} onClick={() => setProfileLearner(null)}>×</button>
             </div>
             <div style={styles.modalBody}>
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: '14px',
-                padding: '16px', background: '#f8f9fa', borderRadius: '10px',
-                border: '1px solid #e8ecf0', marginBottom: '16px',
-              }}>
-                <div style={{
-                  width: '48px', height: '48px', borderRadius: '50%',
-                  background: '#051c2c', color: '#ffffff',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '16px', fontWeight: '700', flexShrink: 0,
-                }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '16px', background: '#f8f9fa', borderRadius: '10px', border: '1px solid #e8ecf0', marginBottom: '16px' }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#051c2c', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: '700', flexShrink: 0 }}>
                   {profileLearner.name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase()}
                 </div>
                 <div>
@@ -700,12 +785,12 @@ if (result.links && result.links.length > 0) {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                 {[
-                  ['Emp ID',     profileLearner.emp_id          || '—'],
-                  ['Department', profileLearner.department_name || '—'],
-                  ['Email',      profileLearner.email           || '—'],
-                  ['Nationality',profileLearner.nationality     || '—'],
-                  ['Gender',     profileLearner.gender          || '—'],
-                  ['Status',     profileLearner.enrollment_status || '—'],
+                  ['Emp ID',      profileLearner.emp_id          || '—'],
+                  ['Department',  profileLearner.department_name || '—'],
+                  ['Email',       profileLearner.email           || '—'],
+                  ['Nationality', profileLearner.nationality     || '—'],
+                  ['Gender',      profileLearner.gender          || '—'],
+                  ['Status',      profileLearner.enrollment_status || '—'],
                 ].map(([k, v]) => (
                   <div key={k}>
                     <div style={{ fontSize: '10px', fontWeight: '700', color: '#9baabb', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>{k}</div>
@@ -716,6 +801,81 @@ if (result.links && result.links.length > 0) {
             </div>
             <div style={styles.modalFooter}>
               <button style={styles.cancelBtn} onClick={() => setProfileLearner(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── TRAINER POPUP ── */}
+      {trainerPopup && (
+        <div style={{ ...styles.overlay, zIndex: 1100 }} onClick={() => setTrainerPopup(null)}>
+          <div style={{ ...styles.modal, maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <span style={styles.modalTitle}>Trainer Profile</span>
+              <button style={styles.modalClose} onClick={() => setTrainerPopup(null)}>×</button>
+            </div>
+            <div style={styles.modalBody}>
+              {trainerPopup.notFound ? (
+                <div style={{ padding: '20px', textAlign: 'center', color: '#9baabb' }}>
+                  Trainer <strong>{trainerPopup.name}</strong> is not in the system yet.
+                  Add them on the Trainers page.
+                </div>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: '#f8f9fa', borderRadius: '10px', border: '1px solid #e8ecf0', marginBottom: '16px' }}>
+                    <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: '#051c2c', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: '700', flexShrink: 0 }}>
+                      {trainerPopup.name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '16px', fontWeight: '700', color: '#051c2c' }}>{trainerPopup.name}</div>
+                      <div style={{ fontSize: '12px', color: '#5a6878', marginTop: '2px' }}>{trainerPopup.institute || '—'}</div>
+                      <div style={{ marginTop: '6px' }}>
+                        <Stars value={trainerPopup.rating} />
+                      </div>
+                    </div>
+                    <span style={{
+                      padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600',
+                      background: trainerPopup.type === 'Internal' ? '#f0f9ff' : '#fdf4ff',
+                      color:      trainerPopup.type === 'Internal' ? '#0369a1' : '#7c3aed',
+                    }}>
+                      {trainerPopup.type || 'External'}
+                    </span>
+                  </div>
+                  {trainerPopup.bio && (
+                    <div style={{ fontSize: '13px', color: '#5a6878', lineHeight: 1.65, padding: '12px 16px', background: '#f8f9fa', borderRadius: '8px', borderLeft: '3px solid #051c2c', marginBottom: '16px' }}>
+                      {trainerPopup.bio}
+                    </div>
+                  )}
+                  {trainerPopup.expertise && trainerPopup.expertise.length > 0 && (
+                    <div style={{ marginBottom: '16px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
+                        Areas of Expertise
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {(Array.isArray(trainerPopup.expertise) ? trainerPopup.expertise : [trainerPopup.expertise]).map((e, i) => (
+                          <span key={i} style={{ background: '#f2f4f6', border: '1px solid #e8ecf0', borderRadius: '20px', padding: '3px 10px', fontSize: '12px', color: '#051c2c' }}>
+                            {e}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                    {[
+                      ['Phone', trainerPopup.phone || '—'],
+                      ['Email', trainerPopup.email || '—'],
+                    ].map(([k, v]) => (
+                      <div key={k}>
+                        <div style={{ fontSize: '10px', fontWeight: '700', color: '#9baabb', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>{k}</div>
+                        <div style={{ fontSize: '13px', fontWeight: '500', color: '#051c2c' }}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+            <div style={styles.modalFooter}>
+              <button style={styles.cancelBtn} onClick={() => setTrainerPopup(null)}>Close</button>
             </div>
           </div>
         </div>
@@ -803,46 +963,58 @@ function F({ label, value, onChange, placeholder, type = 'text', options = [] })
 }
 
 const styles = {
-  page:          { padding: '30px', minHeight: '100vh', background: '#f2f4f6', fontFamily: 'Inter, sans-serif' },
-  statGrid:      { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '14px', marginBottom: '20px' },
-  statCard:      { background: '#051c2c', color: '#ffffff', borderRadius: '12px', padding: '18px 16px', display: 'flex', flexDirection: 'column', gap: '4px' },
-  statIcon:      { fontSize: '20px', marginBottom: '4px' },
-  statNum:       { fontSize: '28px', fontWeight: '800', color: '#ffffff', lineHeight: 1 },
-  statLbl:       { fontSize: '12px', fontWeight: '600', color: '#b6bdc2' },
-  statSub:       { fontSize: '11px', color: 'rgba(182,189,194,0.6)' },
-  controls:      { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' },
-  searchWrap:    { display: 'flex', alignItems: 'center', background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '8px', padding: '0 12px', gap: '6px' },
-  searchInput:   { border: 'none', outline: 'none', fontSize: '13px', padding: '9px 0', width: '220px', fontFamily: 'Inter, sans-serif', background: 'transparent' },
-  addBtn:        { background: '#051c2c', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
-  tableWrap:     { background: '#ffffff', borderRadius: '12px', border: '1px solid #e8ecf0', overflow: 'hidden' },
-  tableTitle:    { fontSize: '16px', fontWeight: '700', color: '#051c2c', padding: '16px 20px', borderBottom: '1px solid #e8ecf0' },
-  table:         { width: '100%', borderCollapse: 'collapse' },
-  theadRow:      { background: '#051c2c' },
-  th:            { padding: '11px 14px', textAlign: 'left', fontSize: '10px', fontWeight: '700', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' },
-  tr:            { borderBottom: '1px solid #f0f2f4' },
-  td:            { padding: '12px 14px', fontSize: '13px', color: '#051c2c', verticalAlign: 'middle' },
-  courseNameBtn: { background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: '#051c2c', textAlign: 'left', padding: 0, fontFamily: 'Inter, sans-serif', textDecoration: 'underline', textDecorationColor: '#e8ecf0' },
-  typeBadge:     { padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600' },
-  actionBtn:     { background: '#051c2c', border: 'none', borderRadius: '6px', padding: '5px 8px', cursor: 'pointer', fontSize: '13px' },
-  overlay:       { position: 'fixed', inset: 0, background: 'rgba(5,28,44,0.55)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' },
-  modal:         { background: '#ffffff', borderRadius: '16px', width: '100%', maxWidth: '660px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(5,28,44,0.25)' },
-  modalHeader:   { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #e8ecf0', position: 'sticky', top: 0, background: '#ffffff', zIndex: 1 },
-  modalTitle:    { fontSize: '18px', fontWeight: '700', color: '#051c2c' },
-  modalClose:    { background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#9baabb' },
-  modalBody:     { padding: '20px 24px' },
-  photoRow:      { display: 'flex', gap: '16px', marginBottom: '16px', alignItems: 'flex-start' },
-  photoBox:      { width: '90px', height: '90px', border: '2px dashed #e8ecf0', borderRadius: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  formGrid:      { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' },
-  modalFooter:   { padding: '14px 24px', borderTop: '1px solid #e8ecf0', display: 'flex', justifyContent: 'flex-end', gap: '10px' },
-  cancelBtn:     { padding: '9px 20px', background: 'none', border: '1.5px solid #e8ecf0', borderRadius: '8px', fontSize: '13px', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
-  saveBtn:       { padding: '9px 24px', background: '#051c2c', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', color: '#ffffff', fontFamily: 'Inter, sans-serif' },
-  coverImg:      { width: '100%', height: '100px', background: '#f2f4f6', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' },
-  infoBar:       { display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '8px', background: '#f8f9fa', borderRadius: '10px', padding: '14px', marginBottom: '16px', border: '1px solid #e8ecf0' },
-  infoBarItem:   { textAlign: 'center' },
-  infoBarLabel:  { fontSize: '9px', color: '#9baabb', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '4px' },
-  infoBarValue:  { fontSize: '13px', fontWeight: '700', color: '#051c2c' },
-  detailGrid:    { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' },
-  sectionLabel:  { fontSize: '12px', fontWeight: '700', color: '#051c2c', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid #e8ecf0' },
+  page:             { padding: '30px', minHeight: '100vh', background: '#f2f4f6', fontFamily: 'Inter, sans-serif' },
+  statGrid:         { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '14px', marginBottom: '20px' },
+  statCard:         { background: '#051c2c', color: '#ffffff', borderRadius: '12px', padding: '18px 16px', display: 'flex', flexDirection: 'column', gap: '4px' },
+  statIcon:         { fontSize: '20px', marginBottom: '4px' },
+  statNum:          { fontSize: '28px', fontWeight: '800', color: '#ffffff', lineHeight: 1 },
+  statLbl:          { fontSize: '12px', fontWeight: '600', color: '#b6bdc2' },
+  statSub:          { fontSize: '11px', color: 'rgba(182,189,194,0.6)' },
+  upcomingSection:  { background: '#ffffff', borderRadius: '12px', border: '1px solid #e8ecf0', padding: '20px', marginBottom: '20px' },
+  upcomingHeader:   { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' },
+  upcomingTitle:    { fontSize: '15px', fontWeight: '700', color: '#051c2c' },
+  upcomingGrid:     { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '14px' },
+  upcomingCard:     { background: '#f8f9fa', borderRadius: '10px', border: '1px solid #e8ecf0', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' },
+  upcomingCardHeader:{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  upcomingCardTitle:{ fontSize: '13px', fontWeight: '700', color: '#051c2c', lineHeight: 1.4 },
+  upcomingCardMeta: { display: 'flex', flexDirection: 'column', gap: '6px' },
+  upcomingMetaItem: { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#5a6878' },
+  upcomingMetaIcon: { fontSize: '12px', flexShrink: 0 },
+  upcomingViewBtn:  { background: 'none', border: '1px solid #e8ecf0', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', color: '#051c2c', fontFamily: 'Inter, sans-serif', marginTop: 'auto' },
+  controls:         { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' },
+  searchWrap:       { display: 'flex', alignItems: 'center', background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '8px', padding: '0 12px', gap: '6px' },
+  searchInput:      { border: 'none', outline: 'none', fontSize: '13px', padding: '9px 0', width: '220px', fontFamily: 'Inter, sans-serif', background: 'transparent' },
+  addBtn:           { background: '#051c2c', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
+  tableWrap:        { background: '#ffffff', borderRadius: '12px', border: '1px solid #e8ecf0', overflow: 'hidden' },
+  tableTitle:       { fontSize: '16px', fontWeight: '700', color: '#051c2c', padding: '16px 20px', borderBottom: '1px solid #e8ecf0' },
+  table:            { width: '100%', borderCollapse: 'collapse' },
+  theadRow:         { background: '#051c2c' },
+  th:               { padding: '11px 14px', textAlign: 'left', fontSize: '10px', fontWeight: '700', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' },
+  tr:               { borderBottom: '1px solid #f0f2f4' },
+  td:               { padding: '12px 14px', fontSize: '13px', color: '#051c2c', verticalAlign: 'middle' },
+  courseNameBtn:    { background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: '#051c2c', textAlign: 'left', padding: 0, fontFamily: 'Inter, sans-serif', textDecoration: 'underline', textDecorationColor: '#e8ecf0' },
+  trainerNameBtn:   { background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: '500', color: '#0369a1', textAlign: 'left', padding: 0, fontFamily: 'Inter, sans-serif', textDecoration: 'underline' },
+  typeBadge:        { padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600' },
+  actionBtn:        { background: '#051c2c', border: 'none', borderRadius: '6px', padding: '5px 8px', cursor: 'pointer', fontSize: '13px' },
+  overlay:          { position: 'fixed', inset: 0, background: 'rgba(5,28,44,0.55)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' },
+  modal:            { background: '#ffffff', borderRadius: '16px', width: '100%', maxWidth: '660px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(5,28,44,0.25)' },
+  modalHeader:      { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #e8ecf0', position: 'sticky', top: 0, background: '#ffffff', zIndex: 1 },
+  modalTitle:       { fontSize: '18px', fontWeight: '700', color: '#051c2c' },
+  modalClose:       { background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#9baabb' },
+  modalBody:        { padding: '20px 24px' },
+  photoRow:         { display: 'flex', gap: '16px', marginBottom: '16px', alignItems: 'flex-start' },
+  photoBox:         { width: '90px', height: '90px', border: '2px dashed #e8ecf0', borderRadius: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  formGrid:         { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' },
+  modalFooter:      { padding: '14px 24px', borderTop: '1px solid #e8ecf0', display: 'flex', justifyContent: 'flex-end', gap: '10px' },
+  cancelBtn:        { padding: '9px 20px', background: 'none', border: '1.5px solid #e8ecf0', borderRadius: '8px', fontSize: '13px', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
+  saveBtn:          { padding: '9px 24px', background: '#051c2c', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', color: '#ffffff', fontFamily: 'Inter, sans-serif' },
+  coverImg:         { width: '100%', height: '100px', background: '#f2f4f6', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' },
+  infoBar:          { display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '8px', background: '#f8f9fa', borderRadius: '10px', padding: '14px', marginBottom: '16px', border: '1px solid #e8ecf0' },
+  infoBarItem:      { textAlign: 'center' },
+  infoBarLabel:     { fontSize: '9px', color: '#9baabb', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '4px' },
+  infoBarValue:     { fontSize: '13px', fontWeight: '700', color: '#051c2c' },
+  detailGrid:       { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' },
+  sectionLabel:     { fontSize: '12px', fontWeight: '700', color: '#051c2c', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid #e8ecf0' },
 };
 
 export default CoursesPage;
