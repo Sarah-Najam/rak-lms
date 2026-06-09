@@ -248,6 +248,11 @@ getEnrollmentsByLearner: (id) =>
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, password }),
     }).then(r => r.json()),
+    getTrainerSatisfactionById: (id, period) =>
+    fetch(`${BASE_URL}/trainers/${id}/satisfaction?period=${period}`, { headers: headers() }).then(r => r.json()),
+
+  getTrainerSatisfactionByName: (name, period) =>
+    fetch(`${BASE_URL}/trainers/by-name/satisfaction?name=${encodeURIComponent(name)}&period=${period}`, { headers: headers() }).then(r => r.json()),
 };
 
 export default api;

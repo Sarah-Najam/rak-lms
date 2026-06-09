@@ -4,16 +4,45 @@ import Pagination from '../components/Pagination';
 
 const ITEMS_PER_PAGE = 20;
 
+const STAR_LEGEND = [
+  { stars: 5, label: 'Excellent',  pct: '100%', color: '#15803d' },
+  { stars: 4, label: 'Very Good',  pct: '80%',  color: '#0369a1' },
+  { stars: 3, label: 'Good',       pct: '60%',  color: '#a16207' },
+  { stars: 2, label: 'Fair',       pct: '40%',  color: '#c2410c' },
+  { stars: 1, label: 'Poor',       pct: '20%',  color: '#991b1b' },
+];
+
+function CourseSatisfactionBar({ pct, title }) {
+  return (
+    <div style={{ marginBottom: '8px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+        <span style={{ fontSize: '12px', color: '#051c2c', fontWeight: '500' }}>{title}</span>
+        <span style={{ fontSize: '12px', fontWeight: '700', color: '#c8973a' }}>{pct}%</span>
+      </div>
+      <div style={{ height: '6px', background: '#e8ecf0', borderRadius: '3px', overflow: 'hidden' }}>
+        <div style={{
+          height: '100%', width: pct + '%',
+          background: pct >= 80 ? '#15803d' : pct >= 60 ? '#a16207' : '#991b1b',
+          borderRadius: '3px', transition: 'width 0.4s ease',
+        }} />
+      </div>
+    </div>
+  );
+}
+
 function TrainersPage() {
 
-  const [trainers,    setTrainers]   = useState([]);
-  const [showAdd,     setShowAdd]    = useState(false);
-  const [showEdit,    setShowEdit]   = useState(false);
-  const [selected,    setSelected]   = useState(null);
-  const [searchTerm,  setSearchTerm] = useState('');
-  const [loading,     setLoading]    = useState(true);
-  const [hoverRating, setHoverRating]= useState(0);
-  const [currentPage, setCurrentPage]= useState(1);
+  const [trainers,     setTrainers]     = useState([]);
+  const [showAdd,      setShowAdd]      = useState(false);
+  const [showEdit,     setShowEdit]     = useState(false);
+  const [selected,     setSelected]     = useState(null);
+  const [searchTerm,   setSearchTerm]   = useState('');
+  const [loading,      setLoading]      = useState(true);
+  const [hoverRating,  setHoverRating]  = useState(0);
+  const [currentPage,  setCurrentPage]  = useState(1);
+  const [satPeriod,    setSatPeriod]    = useState('annual');
+  const [satData,      setSatData]      = useState(null);
+  const [satLoading,   setSatLoading]   = useState(false);
 
   const emptyForm = {
     name: '', institute: '', rating: 0, phone: '',
@@ -22,9 +51,11 @@ function TrainersPage() {
   const [form,     setForm]     = useState(emptyForm);
   const [editForm, setEditForm] = useState(emptyForm);
 
+  useEffect(() => { loadTrainers(); }, []);
+
   useEffect(() => {
-    loadTrainers();
-  }, []);
+    if (selected && !showEdit) loadSatisfaction(selected, satPeriod);
+  }, [selected, satPeriod, showEdit]);
 
   const loadTrainers = () => {
     api.getTrainers()
@@ -33,6 +64,17 @@ function TrainersPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+  };
+
+  const loadSatisfaction = async (trainer, period) => {
+    setSatLoading(true);
+    try {
+      const data = await api.getTrainerSatisfactionById(trainer.id, period);
+      setSatData(data);
+    } catch (err) {
+      setSatData(null);
+    }
+    setSatLoading(false);
   };
 
   const filtered = trainers.filter(t =>
@@ -134,11 +176,6 @@ function TrainersPage() {
           fontSize: size + 'px',
         }}>★</span>
       ))}
-      {value > 0 && (
-        <span style={{ fontSize: '11px', color: '#9baabb', marginLeft: '3px' }}>
-          {value}
-        </span>
-      )}
     </span>
   );
 
@@ -159,6 +196,12 @@ function TrainersPage() {
       ))}
     </div>
   );
+
+  const periodLabel = {
+    monthly:   'This Month',
+    quarterly: 'This Quarter',
+    annual:    'This Year',
+  };
 
   return (
     <div style={styles.page}>
@@ -190,8 +233,7 @@ function TrainersPage() {
             <table style={{ ...styles.table, minWidth: '700px' }}>
               <thead>
                 <tr style={styles.theadRow}>
-                  {['No.', 'Name', 'Institute', 'Expertise',
-                    'Rating', 'Type', ''].map(h => (
+                  {['No.', 'Name', 'Institute', 'Expertise', 'Rating', 'Type', ''].map(h => (
                     <th key={h} style={styles.th}>{h}</th>
                   ))}
                 </tr>
@@ -205,7 +247,7 @@ function TrainersPage() {
                     <td style={styles.td}>
                       <button
                         style={styles.nameBtn}
-                        onClick={() => { setSelected(trainer); }}
+                        onClick={() => { setSelected(trainer); setSatData(null); }}
                       >
                         {trainer.name}
                       </button>
@@ -232,16 +274,8 @@ function TrainersPage() {
                     </td>
                     <td style={{ ...styles.td, whiteSpace: 'nowrap' }}>
                       <div style={{ display: 'flex', gap: '6px' }}>
-                        <button
-                          style={styles.editBtn}
-                          onClick={() => openEdit(trainer)}
-                          title="Edit"
-                        >✏️</button>
-                        <button
-                          style={{ ...styles.editBtn, background: '#fee2e2' }}
-                          onClick={() => handleDelete(trainer.id)}
-                          title="Delete"
-                        >🗑️</button>
+                        <button style={styles.editBtn} onClick={() => openEdit(trainer)} title="Edit">✏️</button>
+                        <button style={{ ...styles.editBtn, background: '#fee2e2' }} onClick={() => handleDelete(trainer.id)} title="Delete">🗑️</button>
                       </div>
                     </td>
                   </tr>
@@ -279,7 +313,8 @@ function TrainersPage() {
             <div style={styles.modalBody}>
               <TrainerForm
                 form={form} setForm={setForm}
-                hoverRating={hoverRating} setHoverRating={setHoverRating}
+                hoverRating={hoverRating}
+                setHoverRating={setHoverRating}
                 StarRater={StarRater}
               />
             </div>
@@ -302,7 +337,8 @@ function TrainersPage() {
             <div style={styles.modalBody}>
               <TrainerForm
                 form={editForm} setForm={setEditForm}
-                hoverRating={hoverRating} setHoverRating={setHoverRating}
+                hoverRating={hoverRating}
+                setHoverRating={setHoverRating}
                 StarRater={StarRater}
               />
             </div>
@@ -316,20 +352,20 @@ function TrainersPage() {
 
       {/* ── TRAINER PROFILE POPUP ── */}
       {selected && !showEdit && (
-        <div style={styles.overlay} onClick={() => setSelected(null)}>
-          <div style={{ ...styles.modal, maxWidth: '600px' }}
+        <div style={styles.overlay} onClick={() => { setSelected(null); setSatData(null); }}>
+          <div style={{ ...styles.modal, maxWidth: '660px' }}
             onClick={e => e.stopPropagation()}>
             <div style={styles.modalHeader}>
               <span style={styles.modalTitle}>Trainer Profile</span>
-              <button style={styles.modalClose} onClick={() => setSelected(null)}>×</button>
+              <button style={styles.modalClose} onClick={() => { setSelected(null); setSatData(null); }}>×</button>
             </div>
             <div style={styles.modalBody}>
 
+              {/* Header */}
               <div style={{
                 display: 'flex', alignItems: 'center', gap: '16px',
                 padding: '16px 18px', background: '#f8f9fa',
-                borderRadius: '10px', marginBottom: '18px',
-                border: '1px solid #e8ecf0',
+                borderRadius: '10px', marginBottom: '18px', border: '1px solid #e8ecf0',
               }}>
                 <div style={{
                   width: '54px', height: '54px', borderRadius: '50%',
@@ -344,10 +380,15 @@ function TrainersPage() {
                     {selected.name}
                   </div>
                   <div style={{ fontSize: '12px', color: '#5a6878', marginTop: '3px' }}>
-                    {selected.institute}
+                    {selected.institute || '—'}
                   </div>
-                  <div style={{ marginTop: '6px' }}>
-                    <Stars value={selected.rating} size={13} />
+                  <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Stars value={satData?.star_value || selected.rating} size={14} />
+                    {satData && satData.course_count > 0 && (
+                      <span style={{ fontSize: '13px', fontWeight: '700', color: '#c8973a' }}>
+                        {satData.percentage}%
+                      </span>
+                    )}
                   </div>
                 </div>
                 <span style={{
@@ -360,6 +401,7 @@ function TrainersPage() {
                 </span>
               </div>
 
+              {/* Bio */}
               {selected.bio && (
                 <div style={{
                   fontSize: '13px', color: '#5a6878', lineHeight: 1.65,
@@ -371,25 +413,17 @@ function TrainersPage() {
                 </div>
               )}
 
+              {/* Expertise */}
               {selected.expertise && selected.expertise.length > 0 && (
                 <div style={{ marginBottom: '16px' }}>
-                  <div style={{
-                    fontSize: '11px', fontWeight: '700', color: '#5a6878',
-                    textTransform: 'uppercase', letterSpacing: '0.5px',
-                    marginBottom: '8px',
-                  }}>
+                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
                     Areas of Expertise
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                     {(Array.isArray(selected.expertise)
-                      ? selected.expertise
-                      : [selected.expertise]
+                      ? selected.expertise : [selected.expertise]
                     ).map((e, i) => (
-                      <span key={i} style={{
-                        background: '#f2f4f6', border: '1px solid #e8ecf0',
-                        borderRadius: '20px', padding: '3px 10px',
-                        fontSize: '12px', fontWeight: '500', color: '#051c2c',
-                      }}>
+                      <span key={i} style={{ background: '#f2f4f6', border: '1px solid #e8ecf0', borderRadius: '20px', padding: '3px 10px', fontSize: '12px', fontWeight: '500', color: '#051c2c' }}>
                         {e}
                       </span>
                     ))}
@@ -397,10 +431,8 @@ function TrainersPage() {
                 </div>
               )}
 
-              <div style={{
-                display: 'grid', gridTemplateColumns: '1fr 1fr',
-                gap: '14px', marginBottom: '16px',
-              }}>
+              {/* Contact */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '20px' }}>
                 <div>
                   <div style={styles.fieldLabel}>Phone</div>
                   <div style={{ fontSize: '13px', fontWeight: '500', color: '#051c2c', marginTop: '4px' }}>
@@ -415,12 +447,106 @@ function TrainersPage() {
                 </div>
               </div>
 
+              {/* ── SATISFACTION RATE SECTION ── */}
+              <div style={{ borderTop: '1px solid #e8ecf0', paddingTop: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#051c2c' }}>
+                    Satisfaction Rate
+                  </div>
+                  <div style={styles.periodToggle}>
+                    {['monthly', 'quarterly', 'annual'].map(p => (
+                      <button
+                        key={p}
+                        onClick={() => setSatPeriod(p)}
+                        style={{
+                          ...styles.periodBtn,
+                          ...(satPeriod === p ? styles.periodBtnActive : {}),
+                        }}
+                      >
+                        {periodLabel[p]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {satLoading ? (
+                  <div style={{ padding: '16px', textAlign: 'center', color: '#9baabb', fontSize: '13px' }}>
+                    Loading...
+                  </div>
+                ) : satData && satData.course_count > 0 ? (
+                  <>
+                    {/* Overall score */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '14px 16px', background: '#f8f9fa', borderRadius: '10px', border: '1px solid #e8ecf0', marginBottom: '14px' }}>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '32px', fontWeight: '800', color: '#c8973a', lineHeight: 1 }}>
+                          {satData.percentage}%
+                        </div>
+                        <div style={{ fontSize: '10px', color: '#9baabb', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                          Overall
+                        </div>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <Stars value={satData.star_value} size={20} />
+                        <div style={{ fontSize: '12px', color: '#5a6878', marginTop: '6px' }}>
+                          Based on {satData.course_count} course{satData.course_count !== 1 ? 's' : ''} — {periodLabel[satPeriod]}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Per course breakdown */}
+                    <div style={{ marginBottom: '14px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>
+                        Course Breakdown
+                      </div>
+                      {satData.courses.map((c, i) => (
+                        <CourseSatisfactionBar
+                          key={i}
+                          title={c.title}
+                          pct={c.percentage}
+                        />
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ padding: '16px', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #e8ecf0', textAlign: 'center', fontSize: '13px', color: '#9baabb' }}>
+                    No rated courses found for {periodLabel[satPeriod].toLowerCase()}.
+                    <br />
+                    <span style={{ fontSize: '11px' }}>Rate courses by editing them on the Courses page.</span>
+                  </div>
+                )}
+
+                {/* ── STAR LEGEND ── */}
+                <div style={{ marginTop: '16px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
+                    Rating Legend
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px' }}>
+                    {STAR_LEGEND.map(item => (
+                      <div key={item.stars} style={{
+                        background: '#f8f9fa', borderRadius: '8px',
+                        padding: '8px', textAlign: 'center',
+                        border: '1px solid #e8ecf0',
+                      }}>
+                        <div style={{ fontSize: '14px', color: '#c8973a', marginBottom: '2px' }}>
+                          {'★'.repeat(item.stars)}{'☆'.repeat(5 - item.stars)}
+                        </div>
+                        <div style={{ fontSize: '12px', fontWeight: '700', color: item.color }}>
+                          {item.pct}
+                        </div>
+                        <div style={{ fontSize: '10px', color: '#9baabb', marginTop: '2px' }}>
+                          {item.label}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+
             </div>
             <div style={styles.modalFooter}>
-              <button style={styles.cancelBtn} onClick={() => setSelected(null)}>Close</button>
-              <button style={styles.saveBtn} onClick={() => openEdit(selected)}>
-                Edit Trainer
-              </button>
+              <button style={styles.cancelBtn} onClick={() => { setSelected(null); setSatData(null); }}>Close</button>
+              <button style={styles.saveBtn} onClick={() => openEdit(selected)}>Edit Trainer</button>
             </div>
           </div>
         </div>
@@ -434,11 +560,7 @@ function TrainerForm({ form, setForm, hoverRating, setHoverRating, StarRater }) 
   return (
     <>
       <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '16px' }}>
-        <div style={{
-          width: '72px', height: '72px', borderRadius: '50%',
-          border: '2px dashed #e8ecf0', display: 'flex',
-          alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-        }}>
+        <div style={{ width: '72px', height: '72px', borderRadius: '50%', border: '2px dashed #e8ecf0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           <span style={{ fontSize: '28px' }}>👤</span>
         </div>
         <div style={{ flex: 1 }}>
@@ -447,10 +569,7 @@ function TrainerForm({ form, setForm, hoverRating, setHoverRating, StarRater }) 
         </div>
       </div>
       <div style={{ marginBottom: '14px' }}>
-        <label style={{
-          fontSize: '11px', fontWeight: '700', color: '#5a6878',
-          textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '6px',
-        }}>
+        <label style={{ fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '6px' }}>
           Trainer Rating
         </label>
         <StarRater value={form.rating} onChange={v => setForm({...form, rating: v})} />
@@ -468,22 +587,14 @@ function TrainerForm({ form, setForm, hoverRating, setHoverRating, StarRater }) 
         </div>
       </div>
       <div>
-        <label style={{
-          fontSize: '11px', fontWeight: '700', color: '#5a6878',
-          textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '5px',
-        }}>
+        <label style={{ fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '5px' }}>
           Bio
         </label>
         <textarea
           value={form.bio}
           onChange={e => setForm({...form, bio: e.target.value})}
           placeholder="Brief background of the trainer"
-          style={{
-            width: '100%', padding: '10px 12px', border: '1.5px solid #e8ecf0',
-            borderRadius: '8px', fontSize: '13px', outline: 'none',
-            background: '#f8f9fa', resize: 'vertical', minHeight: '70px',
-            fontFamily: 'Inter, sans-serif', boxSizing: 'border-box',
-          }}
+          style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e8ecf0', borderRadius: '8px', fontSize: '13px', outline: 'none', background: '#f8f9fa', resize: 'vertical', minHeight: '70px', fontFamily: 'Inter, sans-serif', boxSizing: 'border-box' }}
         />
       </div>
     </>
@@ -498,10 +609,7 @@ function F({ label, value, onChange, placeholder, type = 'text', options = [] })
   };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-      <label style={{
-        fontSize: '11px', fontWeight: '700', color: '#5a6878',
-        textTransform: 'uppercase', letterSpacing: '0.5px',
-      }}>
+      <label style={{ fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
         {label}
       </label>
       {type === 'select' ? (
@@ -517,30 +625,33 @@ function F({ label, value, onChange, placeholder, type = 'text', options = [] })
 }
 
 const styles = {
-  page:        { padding: '30px', minHeight: '100vh', background: '#f2f4f6', fontFamily: 'Inter, sans-serif' },
-  controls:    { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' },
-  searchWrap:  { display: 'flex', alignItems: 'center', background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '8px', padding: '0 12px', gap: '6px' },
-  searchInput: { border: 'none', outline: 'none', fontSize: '13px', padding: '10px 0', width: '200px', background: 'transparent', fontFamily: 'Inter, sans-serif' },
-  addBtn:      { background: '#051c2c', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
-  tableWrap:   { background: '#ffffff', borderRadius: '12px', border: '1px solid #e8ecf0', overflow: 'hidden' },
-  table:       { width: '100%', borderCollapse: 'collapse' },
-  theadRow:    { background: '#051c2c' },
-  th:          { padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' },
-  tr:          { borderBottom: '1px solid #f0f2f4' },
-  td:          { padding: '13px 16px', fontSize: '13px', color: '#051c2c', verticalAlign: 'middle' },
-  nameBtn:     { background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: '#051c2c', padding: 0, fontFamily: 'Inter, sans-serif', textDecoration: 'underline', textDecorationColor: '#e8ecf0' },
-  typeBadge:   { padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600' },
-  editBtn:     { background: '#051c2c', border: 'none', borderRadius: '6px', padding: '5px 8px', cursor: 'pointer', fontSize: '13px' },
-  overlay:     { position: 'fixed', inset: 0, background: 'rgba(5,28,44,0.55)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' },
-  modal:       { background: '#ffffff', borderRadius: '16px', width: '100%', maxWidth: '560px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(5,28,44,0.25)' },
-  modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #e8ecf0', position: 'sticky', top: 0, background: '#ffffff', zIndex: 1 },
-  modalTitle:  { fontSize: '18px', fontWeight: '700', color: '#051c2c' },
-  modalClose:  { background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#9baabb' },
-  modalBody:   { padding: '22px 24px' },
-  modalFooter: { padding: '14px 24px', borderTop: '1px solid #e8ecf0', display: 'flex', justifyContent: 'flex-end', gap: '10px' },
-  cancelBtn:   { padding: '9px 20px', background: 'none', border: '1.5px solid #e8ecf0', borderRadius: '8px', fontSize: '13px', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
-  saveBtn:     { padding: '9px 24px', background: '#051c2c', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', color: '#ffffff', fontFamily: 'Inter, sans-serif' },
-  fieldLabel:  { fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  page:            { padding: '30px', minHeight: '100vh', background: '#f2f4f6', fontFamily: 'Inter, sans-serif' },
+  controls:        { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' },
+  searchWrap:      { display: 'flex', alignItems: 'center', background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '8px', padding: '0 12px', gap: '6px' },
+  searchInput:     { border: 'none', outline: 'none', fontSize: '13px', padding: '10px 0', width: '200px', background: 'transparent', fontFamily: 'Inter, sans-serif' },
+  addBtn:          { background: '#051c2c', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
+  tableWrap:       { background: '#ffffff', borderRadius: '12px', border: '1px solid #e8ecf0', overflow: 'hidden' },
+  table:           { width: '100%', borderCollapse: 'collapse' },
+  theadRow:        { background: '#051c2c' },
+  th:              { padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' },
+  tr:              { borderBottom: '1px solid #f0f2f4' },
+  td:              { padding: '13px 16px', fontSize: '13px', color: '#051c2c', verticalAlign: 'middle' },
+  nameBtn:         { background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: '#051c2c', padding: 0, fontFamily: 'Inter, sans-serif', textDecoration: 'underline', textDecorationColor: '#e8ecf0' },
+  typeBadge:       { padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600' },
+  editBtn:         { background: '#051c2c', border: 'none', borderRadius: '6px', padding: '5px 8px', cursor: 'pointer', fontSize: '13px' },
+  overlay:         { position: 'fixed', inset: 0, background: 'rgba(5,28,44,0.55)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' },
+  modal:           { background: '#ffffff', borderRadius: '16px', width: '100%', maxWidth: '560px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(5,28,44,0.25)' },
+  modalHeader:     { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #e8ecf0', position: 'sticky', top: 0, background: '#ffffff', zIndex: 1 },
+  modalTitle:      { fontSize: '18px', fontWeight: '700', color: '#051c2c' },
+  modalClose:      { background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#9baabb' },
+  modalBody:       { padding: '22px 24px' },
+  modalFooter:     { padding: '14px 24px', borderTop: '1px solid #e8ecf0', display: 'flex', justifyContent: 'flex-end', gap: '10px' },
+  cancelBtn:       { padding: '9px 20px', background: 'none', border: '1.5px solid #e8ecf0', borderRadius: '8px', fontSize: '13px', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
+  saveBtn:         { padding: '9px 24px', background: '#051c2c', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', color: '#ffffff', fontFamily: 'Inter, sans-serif' },
+  fieldLabel:      { fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  periodToggle:    { display: 'flex', background: '#f2f4f6', borderRadius: '6px', padding: '2px', gap: '2px' },
+  periodBtn:       { padding: '4px 10px', fontSize: '11px', fontWeight: '500', border: 'none', background: 'none', borderRadius: '4px', cursor: 'pointer', color: '#5a6878', fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap' },
+  periodBtnActive: { background: '#051c2c', color: '#ffffff' },
 };
 
 export default TrainersPage;
