@@ -5,38 +5,6 @@ import {
 } from 'recharts';
 import api from '../api';
 
-const satisfactionTrendData = [
-  { month: 'Jan', score: 4.2 }, { month: 'Feb', score: 4.3 },
-  { month: 'Mar', score: 4.3 }, { month: 'Apr', score: 4.5 },
-  { month: 'May', score: 4.4 }, { month: 'Jun', score: 4.6 },
-  { month: 'Jul', score: 4.5 }, { month: 'Aug', score: 4.7 },
-  { month: 'Sep', score: 4.6 }, { month: 'Oct', score: 4.8 },
-  { month: 'Nov', score: 4.7 }, { month: 'Dec', score: 4.9 },
-];
-
-const satisfactionQuarterData = [
-  { month: 'Q1', score: 4.3 },
-  { month: 'Q2', score: 4.5 },
-  { month: 'Q3', score: 4.6 },
-  { month: 'Q4', score: 4.8 },
-];
-
-const coursesByMonthData = [
-  { month: 'Jan', courses: 5 },  { month: 'Feb', courses: 9 },
-  { month: 'Mar', courses: 5 },  { month: 'Apr', courses: 4 },
-  { month: 'May', courses: 7 },  { month: 'Jun', courses: 6 },
-  { month: 'Jul', courses: 3 },  { month: 'Aug', courses: 8 },
-  { month: 'Sep', courses: 4 },  { month: 'Oct', courses: 9 },
-  { month: 'Nov', courses: 6 },  { month: 'Dec', courses: 5 },
-];
-
-const coursesByQuarterData = [
-  { month: 'Q1', courses: 19 },
-  { month: 'Q2', courses: 17 },
-  { month: 'Q3', courses: 15 },
-  { month: 'Q4', courses: 20 },
-];
-
 function DashboardPage() {
 
   const [stats,   setStats]   = useState(null);
@@ -45,13 +13,6 @@ function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [calView, setCalView] = useState('Monthly');
   const [satView, setSatView] = useState('Monthly');
-
-  const upcomingTraining = [
-    { date: '14 June', title: 'Fire Safety',   trainer: 'Sarah L.',    dept: 'Operations', enrolled: 25 },
-    { date: '16 June', title: 'CS',            trainer: 'Fatema K.',   dept: 'HR',         enrolled: 56 },
-    { date: '18 June', title: 'Management',    trainer: 'Muhammad M.', dept: 'Sales',      enrolled: 56 },
-    { date: '20 June', title: 'Leadership',    trainer: 'Ahmad F.',    dept: 'Finance',    enrolled: 67 },
-  ];
 
   useEffect(() => {
     Promise.all([
@@ -66,17 +27,65 @@ function DashboardPage() {
     }).catch(() => setLoading(false));
   }, []);
 
-  const avgSatisfaction = depts.length > 0 ? '4.4' : '—';
+  // Upcoming courses from real data
+  const upcomingCourses = courses
+    .filter(c => c.status === 'Pending' || c.status === 'Ongoing')
+    .slice(0, 5);
+
+  const fmtDate = d => d
+    ? new Date(d).toLocaleDateString('en-GB', {
+        day: '2-digit', month: 'short',
+      })
+    : '—';
 
   const deptColor = dept => {
-    const map = {
-      Operations: { bg: '#dbeafe', text: '#1d4ed8' },
-      HR:         { bg: '#dcfce7', text: '#15803d' },
-      Sales:      { bg: '#fef9c3', text: '#a16207' },
-      Finance:    { bg: '#f3e8ff', text: '#7c3aed' },
-    };
-    return map[dept] || { bg: '#f1f5f9', text: '#475569' };
+    const colors = [
+      { bg: '#dbeafe', text: '#1d4ed8' },
+      { bg: '#dcfce7', text: '#15803d' },
+      { bg: '#fef9c3', text: '#a16207' },
+      { bg: '#f3e8ff', text: '#7c3aed' },
+      { bg: '#fee2e2', text: '#991b1b' },
+    ];
+    const idx = dept ? dept.charCodeAt(0) % colors.length : 0;
+    return colors[idx];
   };
+
+  // Chart data from real backend
+  const trendData = satView === 'Monthly'
+    ? (stats?.satisfactionTrend     || [])
+    : (stats?.satisfactionQuarterly || []);
+
+  const trendKey   = satView === 'Monthly' ? 'month'   : 'quarter';
+  const overallPct = stats?.overallSatisfaction || 0;
+  const overallStars = overallPct > 0
+    ? (overallPct / 100 * 5).toFixed(1)
+    : null;
+
+  // Courses by month from real data
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const coursesByMonth = MONTHS.map((month, i) => ({
+    month,
+    courses: courses.filter(c => {
+      const d = c.start_date || c.end_date;
+      if (!d) return false;
+      return new Date(d).getMonth() === i &&
+             new Date(d).getFullYear() === new Date().getFullYear();
+    }).length,
+  }));
+
+  const coursesByQuarter = ['Q1','Q2','Q3','Q4'].map((q, i) => ({
+    quarter: q,
+    courses: courses.filter(c => {
+      const d = c.start_date || c.end_date;
+      if (!d) return false;
+      const month = new Date(d).getMonth();
+      return Math.floor(month / 3) === i &&
+             new Date(d).getFullYear() === new Date().getFullYear();
+    }).length,
+  }));
+
+  const calData    = calView === 'Monthly' ? coursesByMonth : coursesByQuarter;
+  const calKey     = calView === 'Monthly' ? 'month'        : 'quarter';
 
   if (loading) return (
     <div style={{ padding: '40px', textAlign: 'center', color: '#9baabb', fontSize: '14px' }}>
@@ -86,7 +95,6 @@ function DashboardPage() {
 
   return (
     <div style={styles.page}>
-
       <div style={styles.mainGrid}>
 
         {/* ── LEFT COLUMN ── */}
@@ -98,16 +106,23 @@ function DashboardPage() {
             </span>
           </div>
 
+          {/* Stat Cards */}
           <div style={styles.statGrid}>
-  <StatCard label="Total Learners"         value={stats?.totalLearners || 0} />
-  <StatCard label="Total Courses"          value={stats?.totalCourses  || 0} />
-  <StatCard label="Learners Trained"
-    value={stats?.totalLearnersTrainedThisYear || 0}
-    sub={`Jan 1 – Today ${new Date().getFullYear()}`}
-  />
-  <StatCard label="Total Training Hours"   value={(stats?.totalCourses || 0) * 20 + 'h'} wide />
-</div>
+            <StatCard label="Total Learners"  value={stats?.totalLearners || 0} />
+            <StatCard label="Total Courses"   value={stats?.totalCourses  || 0} />
+            <StatCard
+              label="Learners Trained This Year"
+              value={stats?.totalLearnersTrainedThisYear || 0}
+              sub={`Jan 1 – Today ${new Date().getFullYear()}`}
+            />
+            <StatCard
+              label="Total Training Hours"
+              value={(stats?.totalCourses || 0) * 20 + 'h'}
+              wide
+            />
+          </div>
 
+          {/* Charts Row */}
           <div style={styles.chartsRow}>
 
             {/* Satisfaction Trend */}
@@ -115,57 +130,103 @@ function DashboardPage() {
               <div style={styles.chartHeader}>
                 <span style={styles.chartTitle}>Satisfaction Trend</span>
                 <div style={styles.toggleGroup}>
-                  {['Monthly', 'Quarterly'].map(v => (
-                    <button key={v} onClick={() => setSatView(v)}
-                      style={{ ...styles.toggleBtn, ...(satView === v ? styles.toggleBtnActive : {}) }}>
+                  {['Monthly','Quarterly'].map(v => (
+                    <button
+                      key={v}
+                      onClick={() => setSatView(v)}
+                      style={{ ...styles.toggleBtn, ...(satView === v ? styles.toggleBtnActive : {}) }}
+                    >
                       {v}
                     </button>
                   ))}
                 </div>
               </div>
-              <ResponsiveContainer width="100%" height={160}>
-                <LineChart data={satView === 'Monthly' ? satisfactionTrendData : satisfactionQuarterData}>
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9baabb' }} axisLine={false} tickLine={false} />
-                  <YAxis domain={[3.5, 5]} tick={{ fontSize: 11, fill: '#9baabb' }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ fontSize: '12px', borderRadius: '8px', border: '1px solid #e8ecf0' }} />
-                  <Line type="monotone" dataKey="score" stroke="#051c2c" strokeWidth={2}
-                    dot={{ fill: '#051c2c', r: 4 }} activeDot={{ r: 6 }} />
-                </LineChart>
-              </ResponsiveContainer>
+              {trendData.some(d => d.score > 0) ? (
+                <ResponsiveContainer width="100%" height={160}>
+                  <LineChart data={trendData}>
+                    <XAxis
+                      dataKey={trendKey}
+                      tick={{ fontSize: 11, fill: '#9baabb' }}
+                      axisLine={false} tickLine={false}
+                    />
+                    <YAxis
+                      domain={[0, 100]}
+                      tick={{ fontSize: 11, fill: '#9baabb' }}
+                      axisLine={false} tickLine={false}
+                      tickFormatter={v => v + '%'}
+                    />
+                    <Tooltip
+                      formatter={v => v + '%'}
+                      contentStyle={{ fontSize: '12px', borderRadius: '8px', border: '1px solid #e8ecf0' }}
+                    />
+                    <Line
+                      type="monotone" dataKey="score"
+                      stroke="#051c2c" strokeWidth={2}
+                      dot={{ fill: '#051c2c', r: 4 }}
+                      activeDot={{ r: 6 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div style={styles.noDataBox}>
+                  No satisfaction data yet.
+                  <br />
+                  <span style={{ fontSize: '11px' }}>
+                    Rate courses on the Courses page to see the trend.
+                  </span>
+                </div>
+              )}
               <div style={{ fontSize: '11px', color: '#9baabb', textAlign: 'center', marginTop: '6px' }}>
-                Satisfaction Trend
+                Cumulative avg satisfaction % — {new Date().getFullYear()}
               </div>
             </div>
 
-            {/* Satisfaction Analytics Donut */}
+            {/* Satisfaction Analytics */}
             <div style={styles.chartCard}>
               <div style={styles.chartHeader}>
                 <span style={styles.chartTitle}>Satisfaction Analytics</span>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px 0', gap: '8px' }}>
-                <div style={{
-                  width: '110px', height: '110px', borderRadius: '50%',
-                  background: 'conic-gradient(#051c2c 0% 84%, #e8ecf0 84% 100%)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
+              {overallPct > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px 0', gap: '8px' }}>
                   <div style={{
-                    width: '82px', height: '82px', borderRadius: '50%',
-                    background: '#ffffff', display: 'flex', flexDirection: 'column',
-                    alignItems: 'center', justifyContent: 'center',
+                    width: '110px', height: '110px', borderRadius: '50%',
+                    background: `conic-gradient(#051c2c 0% ${overallPct}%, #e8ecf0 ${overallPct}% 100%)`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
-                    <span style={{ fontSize: '22px', fontWeight: '800', color: '#051c2c', lineHeight: 1 }}>
-                      {avgSatisfaction}
-                    </span>
-                    <span style={{ fontSize: '14px', color: '#c8973a', marginTop: '2px' }}>★</span>
+                    <div style={{
+                      width: '82px', height: '82px', borderRadius: '50%',
+                      background: '#ffffff', display: 'flex',
+                      flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <span style={{ fontSize: '20px', fontWeight: '800', color: '#051c2c', lineHeight: 1 }}>
+                        {overallPct}%
+                      </span>
+                      <span style={{ fontSize: '11px', color: '#c8973a', marginTop: '2px' }}>
+                        {'★'.repeat(Math.round(overallPct / 20))}
+                      </span>
+                    </div>
                   </div>
+                  <div style={{ fontSize: '12px', fontWeight: '600', color: '#051c2c', textAlign: 'center' }}>
+                    Overall Satisfaction Score
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#9baabb', textAlign: 'center' }}>
+                    Avg of all rated courses — {new Date().getFullYear()}
+                  </div>
+                  {overallStars && (
+                    <div style={{ fontSize: '13px', fontWeight: '600', color: '#c8973a' }}>
+                      {overallStars} / 5 stars
+                    </div>
+                  )}
                 </div>
-                <div style={{ fontSize: '12px', fontWeight: '600', color: '#051c2c', textAlign: 'center' }}>
-                  Overall Satisfaction Score
+              ) : (
+                <div style={styles.noDataBox}>
+                  No satisfaction data yet.
+                  <br />
+                  <span style={{ fontSize: '11px' }}>
+                    Rate courses to see the overall score.
+                  </span>
                 </div>
-                <div style={{ fontSize: '11px', color: '#9baabb', textAlign: 'center' }}>
-                  Based on {depts.length * 68} feedbacks
-                </div>
-              </div>
+              )}
             </div>
 
           </div>
@@ -177,68 +238,82 @@ function DashboardPage() {
           {/* Upcoming Training Calendar */}
           <div style={styles.calendarCard}>
             <div style={{ fontSize: '14px', fontWeight: '700', color: '#ffffff', marginBottom: '14px' }}>
-              Upcoming Training Calendar
+              Upcoming Training
             </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-              <thead>
-                <tr>
-                  {['Date', 'Course Title', 'Trainer', 'Department', 'Enrolled'].map(h => (
-                    <th key={h} style={{
-                      padding: '6px 8px', textAlign: 'left',
-                      color: 'rgba(182,189,194,0.6)', fontWeight: '600',
-                      fontSize: '10px', textTransform: 'uppercase',
-                      letterSpacing: '0.4px',
-                      borderBottom: '1px solid rgba(255,255,255,0.08)',
-                    }}>
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {upcomingTraining.map((row, i) => (
-                  <tr key={i} style={{ background: i % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent' }}>
-                    <td style={styles.calTd}>{row.date}</td>
-                    <td style={styles.calTd}>{row.title}</td>
-                    <td style={styles.calTd}>{row.trainer}</td>
-                    <td style={{ ...styles.calTd }}>
-                      <span style={{
-                        background: deptColor(row.dept).bg,
-                        color: deptColor(row.dept).text,
-                        padding: '2px 8px', borderRadius: '12px',
-                        fontSize: '10px', fontWeight: '600',
+            {upcomingCourses.length > 0 ? (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                <thead>
+                  <tr>
+                    {['Date', 'Course', 'Trainer', 'Enrolled'].map(h => (
+                      <th key={h} style={{
+                        padding: '6px 8px', textAlign: 'left',
+                        color: 'rgba(182,189,194,0.6)', fontWeight: '600',
+                        fontSize: '10px', textTransform: 'uppercase',
+                        letterSpacing: '0.4px',
+                        borderBottom: '1px solid rgba(255,255,255,0.08)',
                       }}>
-                        {row.dept}
-                      </span>
-                    </td>
-                    <td style={{ ...styles.calTd, fontWeight: 600 }}>{row.enrolled}</td>
+                        {h}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {upcomingCourses.map((course, i) => (
+                    <tr key={course.id} style={{ background: i % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent' }}>
+                      <td style={styles.calTd}>{fmtDate(course.start_date)}</td>
+                      <td style={{ ...styles.calTd, maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {course.title}
+                      </td>
+                      <td style={styles.calTd}>
+                        {course.trainer_name
+                          ? course.trainer_name.split(' ')[0]
+                          : '—'}
+                      </td>
+                      <td style={{ ...styles.calTd, fontWeight: 600 }}>
+                        {course.enrolled_count || 0}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div style={{ color: 'rgba(182,189,194,0.6)', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
+                No upcoming courses.
+              </div>
+            )}
           </div>
 
-          {/* Total Courses by Month — WITH WORKING TOGGLE */}
+          {/* Courses by Month chart */}
           <div style={styles.chartCard}>
             <div style={styles.chartHeader}>
-              <span style={styles.chartTitle}>Total Courses by Month</span>
+              <span style={styles.chartTitle}>Total Courses by Period</span>
               <div style={styles.toggleGroup}>
-                {['Monthly', 'Quarterly'].map(v => (
-                  <button key={v} onClick={() => setCalView(v)}
-                    style={{ ...styles.toggleBtn, ...(calView === v ? styles.toggleBtnActive : {}) }}>
+                {['Monthly','Quarterly'].map(v => (
+                  <button
+                    key={v}
+                    onClick={() => setCalView(v)}
+                    style={{ ...styles.toggleBtn, ...(calView === v ? styles.toggleBtnActive : {}) }}
+                  >
                     {v}
                   </button>
                 ))}
               </div>
             </div>
             <ResponsiveContainer width="100%" height={160}>
-              <BarChart
-                data={calView === 'Monthly' ? coursesByMonthData : coursesByQuarterData}
-                barSize={calView === 'Monthly' ? 16 : 40}
-              >
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9baabb' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#9baabb' }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ fontSize: '12px', borderRadius: '8px', border: '1px solid #e8ecf0' }} />
+              <BarChart data={calData} barSize={calView === 'Monthly' ? 16 : 28}>
+                <XAxis
+                  dataKey={calKey}
+                  tick={{ fontSize: 11, fill: '#9baabb' }}
+                  axisLine={false} tickLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: '#9baabb' }}
+                  axisLine={false} tickLine={false}
+                  allowDecimals={false}
+                />
+                <Tooltip
+                  contentStyle={{ fontSize: '12px', borderRadius: '8px', border: '1px solid #e8ecf0' }}
+                />
                 <Bar dataKey="courses" fill="#051c2c" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -263,23 +338,25 @@ function StatCard({ label, value, wide, sub }) {
 }
 
 const styles = {
-  page:           { padding: '30px', minHeight: '100vh', background: '#f2f4f6', fontFamily: 'Inter, sans-serif' },
-  mainGrid:       { display: 'grid', gridTemplateColumns: '1fr 420px', gap: '24px', alignItems: 'start' },
-  leftCol:        { display: 'flex', flexDirection: 'column', gap: '20px' },
-  rightCol:       { display: 'flex', flexDirection: 'column', gap: '20px' },
-statGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' },  statCard:       { background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '12px', padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: '8px' },
-  statCardWide:   { gridColumn: 'span 2' },
-  statLabel:      { fontSize: '13px', color: '#5a6878', fontWeight: '500' },
-  statValue:      { fontSize: '42px', fontWeight: '800', color: '#051c2c', lineHeight: 1, letterSpacing: '-1px' },
-  chartsRow:      { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' },
-  chartCard:      { background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '12px', padding: '18px 20px' },
-  chartHeader:    { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' },
-  chartTitle:     { fontSize: '13px', fontWeight: '600', color: '#051c2c' },
-  toggleGroup:    { display: 'flex', background: '#f2f4f6', borderRadius: '6px', padding: '2px', gap: '2px' },
-  toggleBtn:      { padding: '3px 10px', fontSize: '11px', fontWeight: '500', border: 'none', background: 'none', borderRadius: '4px', cursor: 'pointer', color: '#5a6878', fontFamily: 'Inter, sans-serif' },
-  toggleBtnActive:{ background: '#051c2c', color: '#ffffff' },
-  calendarCard:   { background: '#051c2c', borderRadius: '12px', padding: '18px 20px', color: '#ffffff' },
-  calTd:          { padding: '9px 8px', color: 'rgba(255,255,255,0.85)', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '12px' },
+  page:            { padding: '30px', minHeight: '100vh', background: '#f2f4f6', fontFamily: 'Inter, sans-serif' },
+  mainGrid:        { display: 'grid', gridTemplateColumns: '1fr 400px', gap: '24px', alignItems: 'start' },
+  leftCol:         { display: 'flex', flexDirection: 'column', gap: '20px' },
+  rightCol:        { display: 'flex', flexDirection: 'column', gap: '20px' },
+  statGrid:        { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' },
+  statCard:        { background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '12px', padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: '6px' },
+  statCardWide:    { gridColumn: 'span 2' },
+  statLabel:       { fontSize: '13px', color: '#5a6878', fontWeight: '500' },
+  statValue:       { fontSize: '38px', fontWeight: '800', color: '#051c2c', lineHeight: 1, letterSpacing: '-1px' },
+  chartsRow:       { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' },
+  chartCard:       { background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '12px', padding: '18px 20px' },
+  chartHeader:     { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' },
+  chartTitle:      { fontSize: '13px', fontWeight: '600', color: '#051c2c' },
+  toggleGroup:     { display: 'flex', background: '#f2f4f6', borderRadius: '6px', padding: '2px', gap: '2px' },
+  toggleBtn:       { padding: '3px 10px', fontSize: '11px', fontWeight: '500', border: 'none', background: 'none', borderRadius: '4px', cursor: 'pointer', color: '#5a6878', fontFamily: 'Inter, sans-serif' },
+  toggleBtnActive: { background: '#051c2c', color: '#ffffff' },
+  calendarCard:    { background: '#051c2c', borderRadius: '12px', padding: '18px 20px', color: '#ffffff' },
+  calTd:           { padding: '9px 8px', color: 'rgba(255,255,255,0.85)', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '12px' },
+  noDataBox:       { padding: '24px', textAlign: 'center', color: '#9baabb', fontSize: '13px', lineHeight: 1.6, background: '#f8f9fa', borderRadius: '8px', border: '1px solid #e8ecf0' },
 };
 
 export default DashboardPage;

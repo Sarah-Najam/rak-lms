@@ -227,7 +227,21 @@ function CoursesPage() {
     );
   };
 
-  const Stars = ({ value }) => (
+  const Stars = ({ value, showPct = false }) => {
+  const pct = Math.round((+value / 5) * 100);
+  if (showPct) {
+    return (
+      <span style={{
+        background: pct >= 80 ? '#dcfce7' : pct >= 60 ? '#fef9c3' : '#fee2e2',
+        color:      pct >= 80 ? '#15803d' : pct >= 60 ? '#a16207' : '#991b1b',
+        padding: '2px 8px', borderRadius: '10px',
+        fontSize: '11px', fontWeight: '700',
+      }}>
+        {pct}%
+      </span>
+    );
+  }
+  return (
     <span>
       {[1,2,3,4,5].map(i => (
         <span key={i} style={{
@@ -242,6 +256,7 @@ function CoursesPage() {
       )}
     </span>
   );
+};
 
   return (
     <div style={styles.page}>
@@ -460,12 +475,12 @@ function CoursesPage() {
                       <td style={{ ...styles.td, fontWeight: 600 }}>
                         {totalHours > 0 ? totalHours + 'h' : '—'}
                       </td>
-                      <td style={styles.td}>
-                        {+course.stars > 0
-                          ? <Stars value={course.stars} />
-                          : <span style={{ color: '#9baabb', fontSize: '12px' }}>—</span>
-                        }
-                      </td>
+                     <td style={styles.td}>
+  {+course.stars > 0
+    ? <Stars value={course.stars} showPct={true} />
+    : <span style={{ color: '#9baabb', fontSize: '12px' }}>—</span>
+  }
+</td>
                       <td style={{ ...styles.td, whiteSpace: 'nowrap' }}>
                         <div style={{ display: 'flex', gap: '6px' }}>
                           <button

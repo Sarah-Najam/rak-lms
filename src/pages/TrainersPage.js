@@ -30,19 +30,56 @@ function CourseSatisfactionBar({ pct, title }) {
   );
 }
 
+function TrainerRating({ trainerId }) {
+  const [data,    setData]    = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.getTrainerSatisfactionById(trainerId, 'annual')
+      .then(d => { setData(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [trainerId]);
+
+  if (loading) return (
+    <span style={{ fontSize: '11px', color: '#9baabb' }}>...</span>
+  );
+
+  if (!data || data.course_count === 0) return (
+    <span style={{ fontSize: '12px', color: '#9baabb' }}>No data</span>
+  );
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+      <span style={{
+        background: data.percentage >= 80 ? '#dcfce7'
+          : data.percentage >= 60 ? '#fef9c3' : '#fee2e2',
+        color: data.percentage >= 80 ? '#15803d'
+          : data.percentage >= 60 ? '#a16207' : '#991b1b',
+        padding: '2px 8px', borderRadius: '10px',
+        fontSize: '11px', fontWeight: '700',
+      }}>
+        {data.percentage}%
+      </span>
+      <span style={{ fontSize: '11px', color: '#9baabb' }}>
+        ({data.course_count} course{data.course_count !== 1 ? 's' : ''})
+      </span>
+    </div>
+  );
+}
+
 function TrainersPage() {
 
-  const [trainers,     setTrainers]     = useState([]);
-  const [showAdd,      setShowAdd]      = useState(false);
-  const [showEdit,     setShowEdit]     = useState(false);
-  const [selected,     setSelected]     = useState(null);
-  const [searchTerm,   setSearchTerm]   = useState('');
-  const [loading,      setLoading]      = useState(true);
-  const [hoverRating,  setHoverRating]  = useState(0);
-  const [currentPage,  setCurrentPage]  = useState(1);
-  const [satPeriod,    setSatPeriod]    = useState('annual');
-  const [satData,      setSatData]      = useState(null);
-  const [satLoading,   setSatLoading]   = useState(false);
+  const [trainers,   setTrainers]   = useState([]);
+  const [showAdd,    setShowAdd]    = useState(false);
+  const [showEdit,   setShowEdit]   = useState(false);
+  const [selected,   setSelected]   = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [loading,    setLoading]    = useState(true);
+  const [hoverRating,setHoverRating]= useState(0);
+  const [currentPage,setCurrentPage]= useState(1);
+  const [satPeriod,  setSatPeriod]  = useState('annual');
+  const [satData,    setSatData]    = useState(null);
+  const [satLoading, setSatLoading] = useState(false);
 
   const emptyForm = {
     name: '', institute: '', rating: 0, phone: '',
@@ -149,8 +186,8 @@ function TrainersPage() {
       email:     trainer.email     || '',
       expertise: Array.isArray(trainer.expertise)
         ? trainer.expertise.join(', ') : trainer.expertise || '',
-      bio:       trainer.bio       || '',
-      type:      trainer.type      || 'Internal',
+      bio:       trainer.bio  || '',
+      type:      trainer.type || 'Internal',
     });
     setShowEdit(true);
   };
@@ -233,7 +270,8 @@ function TrainersPage() {
             <table style={{ ...styles.table, minWidth: '700px' }}>
               <thead>
                 <tr style={styles.theadRow}>
-                  {['No.', 'Name', 'Institute', 'Expertise', 'Rating', 'Type', ''].map(h => (
+                  {['No.', 'Name', 'Institute', 'Expertise',
+                    'Satisfaction Rate', 'Type', ''].map(h => (
                     <th key={h} style={styles.th}>{h}</th>
                   ))}
                 </tr>
@@ -261,7 +299,7 @@ function TrainersPage() {
                         : trainer.expertise || '—'}
                     </td>
                     <td style={styles.td}>
-                      <Stars value={trainer.rating} />
+                      <TrainerRating trainerId={trainer.id} />
                     </td>
                     <td style={styles.td}>
                       <span style={{
@@ -274,8 +312,16 @@ function TrainersPage() {
                     </td>
                     <td style={{ ...styles.td, whiteSpace: 'nowrap' }}>
                       <div style={{ display: 'flex', gap: '6px' }}>
-                        <button style={styles.editBtn} onClick={() => openEdit(trainer)} title="Edit">✏️</button>
-                        <button style={{ ...styles.editBtn, background: '#fee2e2' }} onClick={() => handleDelete(trainer.id)} title="Delete">🗑️</button>
+                        <button
+                          style={styles.editBtn}
+                          onClick={() => openEdit(trainer)}
+                          title="Edit"
+                        >✏️</button>
+                        <button
+                          style={{ ...styles.editBtn, background: '#fee2e2' }}
+                          onClick={() => handleDelete(trainer.id)}
+                          title="Delete"
+                        >🗑️</button>
                       </div>
                     </td>
                   </tr>
@@ -365,7 +411,8 @@ function TrainersPage() {
               <div style={{
                 display: 'flex', alignItems: 'center', gap: '16px',
                 padding: '16px 18px', background: '#f8f9fa',
-                borderRadius: '10px', marginBottom: '18px', border: '1px solid #e8ecf0',
+                borderRadius: '10px', marginBottom: '18px',
+                border: '1px solid #e8ecf0',
               }}>
                 <div style={{
                   width: '54px', height: '54px', borderRadius: '50%',
@@ -383,10 +430,16 @@ function TrainersPage() {
                     {selected.institute || '—'}
                   </div>
                   <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Stars value={satData?.star_value || selected.rating} size={14} />
-                    {satData && satData.course_count > 0 && (
-                      <span style={{ fontSize: '13px', fontWeight: '700', color: '#c8973a' }}>
-                        {satData.percentage}%
+                    {satData && satData.course_count > 0 ? (
+                      <>
+                        <Stars value={satData.star_value} size={14} />
+                        <span style={{ fontSize: '13px', fontWeight: '700', color: '#c8973a' }}>
+                          {satData.percentage}%
+                        </span>
+                      </>
+                    ) : (
+                      <span style={{ fontSize: '12px', color: '#9baabb' }}>
+                        No rated courses yet
                       </span>
                     )}
                   </div>
@@ -416,14 +469,21 @@ function TrainersPage() {
               {/* Expertise */}
               {selected.expertise && selected.expertise.length > 0 && (
                 <div style={{ marginBottom: '16px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
+                  <div style={{
+                    fontSize: '11px', fontWeight: '700', color: '#5a6878',
+                    textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px',
+                  }}>
                     Areas of Expertise
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                     {(Array.isArray(selected.expertise)
                       ? selected.expertise : [selected.expertise]
                     ).map((e, i) => (
-                      <span key={i} style={{ background: '#f2f4f6', border: '1px solid #e8ecf0', borderRadius: '20px', padding: '3px 10px', fontSize: '12px', fontWeight: '500', color: '#051c2c' }}>
+                      <span key={i} style={{
+                        background: '#f2f4f6', border: '1px solid #e8ecf0',
+                        borderRadius: '20px', padding: '3px 10px',
+                        fontSize: '12px', fontWeight: '500', color: '#051c2c',
+                      }}>
                         {e}
                       </span>
                     ))}
@@ -432,7 +492,10 @@ function TrainersPage() {
               )}
 
               {/* Contact */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '20px' }}>
+              <div style={{
+                display: 'grid', gridTemplateColumns: '1fr 1fr',
+                gap: '14px', marginBottom: '20px',
+              }}>
                 <div>
                   <div style={styles.fieldLabel}>Phone</div>
                   <div style={{ fontSize: '13px', fontWeight: '500', color: '#051c2c', marginTop: '4px' }}>
@@ -449,7 +512,10 @@ function TrainersPage() {
 
               {/* ── SATISFACTION RATE SECTION ── */}
               <div style={{ borderTop: '1px solid #e8ecf0', paddingTop: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between',
+                  alignItems: 'center', marginBottom: '14px',
+                }}>
                   <div style={{ fontSize: '13px', fontWeight: '700', color: '#051c2c' }}>
                     Satisfaction Rate
                   </div>
@@ -476,7 +542,12 @@ function TrainersPage() {
                 ) : satData && satData.course_count > 0 ? (
                   <>
                     {/* Overall score */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '14px 16px', background: '#f8f9fa', borderRadius: '10px', border: '1px solid #e8ecf0', marginBottom: '14px' }}>
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: '16px',
+                      padding: '14px 16px', background: '#f8f9fa',
+                      borderRadius: '10px', border: '1px solid #e8ecf0',
+                      marginBottom: '14px',
+                    }}>
                       <div style={{ textAlign: 'center' }}>
                         <div style={{ fontSize: '32px', fontWeight: '800', color: '#c8973a', lineHeight: 1 }}>
                           {satData.percentage}%
@@ -494,30 +565,38 @@ function TrainersPage() {
                     </div>
 
                     {/* Per course breakdown */}
-                    <div style={{ marginBottom: '14px' }}>
-                      <div style={{ fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>
+                    <div style={{ marginBottom: '16px' }}>
+                      <div style={{
+                        fontSize: '11px', fontWeight: '700', color: '#5a6878',
+                        textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px',
+                      }}>
                         Course Breakdown
                       </div>
                       {satData.courses.map((c, i) => (
-                        <CourseSatisfactionBar
-                          key={i}
-                          title={c.title}
-                          pct={c.percentage}
-                        />
+                        <CourseSatisfactionBar key={i} title={c.title} pct={c.percentage} />
                       ))}
                     </div>
                   </>
                 ) : (
-                  <div style={{ padding: '16px', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #e8ecf0', textAlign: 'center', fontSize: '13px', color: '#9baabb' }}>
+                  <div style={{
+                    padding: '16px', background: '#f8f9fa', borderRadius: '8px',
+                    border: '1px solid #e8ecf0', textAlign: 'center',
+                    fontSize: '13px', color: '#9baabb',
+                  }}>
                     No rated courses found for {periodLabel[satPeriod].toLowerCase()}.
                     <br />
-                    <span style={{ fontSize: '11px' }}>Rate courses by editing them on the Courses page.</span>
+                    <span style={{ fontSize: '11px' }}>
+                      Rate courses by editing them on the Courses page.
+                    </span>
                   </div>
                 )}
 
                 {/* ── STAR LEGEND ── */}
                 <div style={{ marginTop: '16px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
+                  <div style={{
+                    fontSize: '11px', fontWeight: '700', color: '#5a6878',
+                    textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px',
+                  }}>
                     Rating Legend
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px' }}>
@@ -542,11 +621,15 @@ function TrainersPage() {
                 </div>
 
               </div>
-
             </div>
+
             <div style={styles.modalFooter}>
-              <button style={styles.cancelBtn} onClick={() => { setSelected(null); setSatData(null); }}>Close</button>
-              <button style={styles.saveBtn} onClick={() => openEdit(selected)}>Edit Trainer</button>
+              <button style={styles.cancelBtn} onClick={() => { setSelected(null); setSatData(null); }}>
+                Close
+              </button>
+              <button style={styles.saveBtn} onClick={() => openEdit(selected)}>
+                Edit Trainer
+              </button>
             </div>
           </div>
         </div>
@@ -560,7 +643,11 @@ function TrainerForm({ form, setForm, hoverRating, setHoverRating, StarRater }) 
   return (
     <>
       <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '16px' }}>
-        <div style={{ width: '72px', height: '72px', borderRadius: '50%', border: '2px dashed #e8ecf0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <div style={{
+          width: '72px', height: '72px', borderRadius: '50%',
+          border: '2px dashed #e8ecf0', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+        }}>
           <span style={{ fontSize: '28px' }}>👤</span>
         </div>
         <div style={{ flex: 1 }}>
@@ -569,7 +656,11 @@ function TrainerForm({ form, setForm, hoverRating, setHoverRating, StarRater }) 
         </div>
       </div>
       <div style={{ marginBottom: '14px' }}>
-        <label style={{ fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '6px' }}>
+        <label style={{
+          fontSize: '11px', fontWeight: '700', color: '#5a6878',
+          textTransform: 'uppercase', letterSpacing: '0.5px',
+          display: 'block', marginBottom: '6px',
+        }}>
           Trainer Rating
         </label>
         <StarRater value={form.rating} onChange={v => setForm({...form, rating: v})} />
@@ -587,14 +678,23 @@ function TrainerForm({ form, setForm, hoverRating, setHoverRating, StarRater }) 
         </div>
       </div>
       <div>
-        <label style={{ fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '5px' }}>
+        <label style={{
+          fontSize: '11px', fontWeight: '700', color: '#5a6878',
+          textTransform: 'uppercase', letterSpacing: '0.5px',
+          display: 'block', marginBottom: '5px',
+        }}>
           Bio
         </label>
         <textarea
           value={form.bio}
           onChange={e => setForm({...form, bio: e.target.value})}
           placeholder="Brief background of the trainer"
-          style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e8ecf0', borderRadius: '8px', fontSize: '13px', outline: 'none', background: '#f8f9fa', resize: 'vertical', minHeight: '70px', fontFamily: 'Inter, sans-serif', boxSizing: 'border-box' }}
+          style={{
+            width: '100%', padding: '10px 12px', border: '1.5px solid #e8ecf0',
+            borderRadius: '8px', fontSize: '13px', outline: 'none',
+            background: '#f8f9fa', resize: 'vertical', minHeight: '70px',
+            fontFamily: 'Inter, sans-serif', boxSizing: 'border-box',
+          }}
         />
       </div>
     </>
@@ -609,7 +709,10 @@ function F({ label, value, onChange, placeholder, type = 'text', options = [] })
   };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-      <label style={{ fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+      <label style={{
+        fontSize: '11px', fontWeight: '700', color: '#5a6878',
+        textTransform: 'uppercase', letterSpacing: '0.5px',
+      }}>
         {label}
       </label>
       {type === 'select' ? (
