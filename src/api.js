@@ -136,16 +136,19 @@ const api = {
     }).then(r => r.json()),
 
   // ── CALENDAR ──────────────────────────────────────────────
-  getCalendar: (year, quarter) => {
-    const url = quarter && quarter !== 'ALL'
-      ? `${BASE_URL}/calendar?year=${year}&quarter=${quarter}`
-      : `${BASE_URL}/calendar?year=${year}`;
-    return fetch(url, { headers: headers() }).then(r => r.json());
-  },
+getCalendar: () =>
+    fetch(`${BASE_URL}/calendar`, { headers: headers() }).then(r => r.json()),
 
   addCalendarEntry: (data) =>
     fetch(`${BASE_URL}/calendar`, {
       method: 'POST',
+      headers: headers(),
+      body: JSON.stringify(data),
+    }).then(r => r.json()),
+
+  updateCalendarEntry: (id, data) =>
+    fetch(`${BASE_URL}/calendar/${id}`, {
+      method: 'PUT',
       headers: headers(),
       body: JSON.stringify(data),
     }).then(r => r.json()),
