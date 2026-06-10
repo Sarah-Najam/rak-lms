@@ -78,29 +78,29 @@ function DashboardPage() {
           </div>
 
           {/* STAT CARDS */}
-          <div style={styles.statGrid}>
-            <div style={{ ...styles.statCard, background: '#051c2c' }}>
-              <div style={styles.statIcon}>🎓</div>
-              <div style={styles.statNum}>{stats?.totalLearners || 0}</div>
-              <div style={styles.statLabel}>Total Learners</div>
-            </div>
-            <div style={{ ...styles.statCard, background: '#1a6b3c' }}>
-              <div style={styles.statIcon}>📚</div>
-              <div style={styles.statNum}>{stats?.totalCourses || 0}</div>
-              <div style={styles.statLabel}>Total Courses</div>
-            </div>
-            <div style={{ ...styles.statCard, background: '#b45309' }}>
-              <div style={styles.statIcon}>🏆</div>
-              <div style={styles.statNum}>{stats?.totalLearnersTrainedThisYear || 0}</div>
-              <div style={styles.statLabel}>Learners Trained</div>
-              <div style={styles.statSub}>Jan 1 – Today {new Date().getFullYear()}</div>
-            </div>
-            <div style={{ ...styles.statCard, background: '#1e40af' }}>
-              <div style={styles.statIcon}>⏱️</div>
-              <div style={styles.statNum}>{(stats?.totalCourses || 0) * 20}h</div>
-              <div style={styles.statLabel}>Total Training Hours</div>
-            </div>
-          </div>
+        <div style={styles.statGrid}>
+  <div style={{ ...styles.statCard, background: '#99442d' }}>
+    <div style={styles.statIcon}>🎓</div>
+    <div style={styles.statNum}>{stats?.totalLearners || 0}</div>
+    <div style={styles.statLabel}>Total Learners</div>
+  </div>
+  <div style={{ ...styles.statCard, background: '#6c879a' }}>
+    <div style={styles.statIcon}>📚</div>
+    <div style={styles.statNum}>{stats?.totalCourses || 0}</div>
+    <div style={styles.statLabel}>Total Courses</div>
+  </div>
+  <div style={{ ...styles.statCard, background: '#6c879a' }}>
+    <div style={styles.statIcon}>🏆</div>
+    <div style={styles.statNum}>{stats?.totalLearnersTrainedThisYear || 0}</div>
+    <div style={styles.statLabel}>Learners Trained</div>
+    <div style={styles.statSub}>Jan 1 – Today {new Date().getFullYear()}</div>
+  </div>
+  <div style={{ ...styles.statCard, background: '#99442d' }}>
+    <div style={styles.statIcon}>⏱️</div>
+    <div style={styles.statNum}>{(stats?.totalCourses || 0) * 20}h</div>
+    <div style={styles.statLabel}>Total Training Hours</div>
+  </div>
+</div>
 
           {/* CHARTS ROW */}
           <div style={styles.chartsRow}>
