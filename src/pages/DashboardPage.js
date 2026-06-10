@@ -27,41 +27,24 @@ function DashboardPage() {
     }).catch(() => setLoading(false));
   }, []);
 
-  // Upcoming courses from real data
   const upcomingCourses = courses
     .filter(c => c.status === 'Pending' || c.status === 'Ongoing')
     .slice(0, 5);
 
   const fmtDate = d => d
-    ? new Date(d).toLocaleDateString('en-GB', {
-        day: '2-digit', month: 'short',
-      })
+    ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
     : '—';
 
-  const deptColor = dept => {
-    const colors = [
-      { bg: '#dbeafe', text: '#1d4ed8' },
-      { bg: '#dcfce7', text: '#15803d' },
-      { bg: '#fef9c3', text: '#a16207' },
-      { bg: '#f3e8ff', text: '#7c3aed' },
-      { bg: '#fee2e2', text: '#991b1b' },
-    ];
-    const idx = dept ? dept.charCodeAt(0) % colors.length : 0;
-    return colors[idx];
-  };
-
   // Chart data from real backend
-  const trendData = satView === 'Monthly'
+  const trendData  = satView === 'Monthly'
     ? (stats?.satisfactionTrend     || [])
     : (stats?.satisfactionQuarterly || []);
-
-  const trendKey   = satView === 'Monthly' ? 'month'   : 'quarter';
+  const trendKey   = satView === 'Monthly' ? 'month' : 'quarter';
   const overallPct = stats?.overallSatisfaction || 0;
   const overallStars = overallPct > 0
-    ? (overallPct / 100 * 5).toFixed(1)
-    : null;
+    ? (overallPct / 100 * 5).toFixed(1) : null;
 
-  // Courses by month from real data
+  // Courses by period from real data
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const coursesByMonth = MONTHS.map((month, i) => ({
     month,
@@ -84,8 +67,8 @@ function DashboardPage() {
     }).length,
   }));
 
-  const calData    = calView === 'Monthly' ? coursesByMonth : coursesByQuarter;
-  const calKey     = calView === 'Monthly' ? 'month'        : 'quarter';
+  const calData = calView === 'Monthly' ? coursesByMonth : coursesByQuarter;
+  const calKey  = calView === 'Monthly' ? 'month' : 'quarter';
 
   if (loading) return (
     <div style={{ padding: '40px', textAlign: 'center', color: '#9baabb', fontSize: '14px' }}>
@@ -101,28 +84,37 @@ function DashboardPage() {
         <div style={styles.leftCol}>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '18px', fontWeight: '700', color: '#051c2c' }}>
+            <span style={{ fontSize: '20px', fontWeight: '700', color: '#051c2c' }}>
               Training Summary
             </span>
           </div>
 
-          {/* Stat Cards */}
+          {/* ── STAT CARDS ── */}
           <div style={styles.statGrid}>
-            <StatCard label="Total Learners"  value={stats?.totalLearners || 0} />
-            <StatCard label="Total Courses"   value={stats?.totalCourses  || 0} />
-            <StatCard
-              label="Learners Trained This Year"
-              value={stats?.totalLearnersTrainedThisYear || 0}
-              sub={`Jan 1 – Today ${new Date().getFullYear()}`}
-            />
-            <StatCard
-              label="Total Training Hours"
-              value={(stats?.totalCourses || 0) * 20 + 'h'}
-              wide
-            />
+            <div style={{ ...styles.statCard, background: '#051c2c' }}>
+              <div style={styles.statIcon}>🎓</div>
+              <div style={styles.statNum}>{stats?.totalLearners || 0}</div>
+              <div style={styles.statLabel}>Total Learners</div>
+            </div>
+            <div style={{ ...styles.statCard, background: '#1a6b3c' }}>
+              <div style={styles.statIcon}>📚</div>
+              <div style={styles.statNum}>{stats?.totalCourses || 0}</div>
+              <div style={styles.statLabel}>Total Courses</div>
+            </div>
+            <div style={{ ...styles.statCard, background: '#b45309' }}>
+              <div style={styles.statIcon}>🏆</div>
+              <div style={styles.statNum}>{stats?.totalLearnersTrainedThisYear || 0}</div>
+              <div style={styles.statLabel}>Learners Trained This Year</div>
+              <div style={styles.statSub}>Jan 1 – Today {new Date().getFullYear()}</div>
+            </div>
+            <div style={{ ...styles.statCard, background: '#1e40af' }}>
+              <div style={styles.statIcon}>⏱️</div>
+              <div style={styles.statNum}>{(stats?.totalCourses || 0) * 20}h</div>
+              <div style={styles.statLabel}>Total Training Hours</div>
+            </div>
           </div>
 
-          {/* Charts Row */}
+          {/* ── CHARTS ROW ── */}
           <div style={styles.chartsRow}>
 
             {/* Satisfaction Trend */}
@@ -134,7 +126,10 @@ function DashboardPage() {
                     <button
                       key={v}
                       onClick={() => setSatView(v)}
-                      style={{ ...styles.toggleBtn, ...(satView === v ? styles.toggleBtnActive : {}) }}
+                      style={{
+                        ...styles.toggleBtn,
+                        ...(satView === v ? styles.toggleBtnActive : {}),
+                      }}
                     >
                       {v}
                     </button>
@@ -161,7 +156,7 @@ function DashboardPage() {
                     />
                     <Line
                       type="monotone" dataKey="score"
-                      stroke="#051c2c" strokeWidth={2}
+                      stroke="#051c2c" strokeWidth={2.5}
                       dot={{ fill: '#051c2c', r: 4 }}
                       activeDot={{ r: 6 }}
                     />
@@ -213,7 +208,7 @@ function DashboardPage() {
                     Avg of all rated courses — {new Date().getFullYear()}
                   </div>
                   {overallStars && (
-                    <div style={{ fontSize: '13px', fontWeight: '600', color: '#c8973a' }}>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#c8973a' }}>
                       {overallStars} / 5 stars
                     </div>
                   )}
@@ -235,10 +230,10 @@ function DashboardPage() {
         {/* ── RIGHT COLUMN ── */}
         <div style={styles.rightCol}>
 
-          {/* Upcoming Training Calendar */}
+          {/* Upcoming Training */}
           <div style={styles.calendarCard}>
-            <div style={{ fontSize: '14px', fontWeight: '700', color: '#ffffff', marginBottom: '14px' }}>
-              Upcoming Training
+            <div style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff', marginBottom: '14px' }}>
+              📅 Upcoming Training
             </div>
             {upcomingCourses.length > 0 ? (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
@@ -247,10 +242,10 @@ function DashboardPage() {
                     {['Date', 'Course', 'Trainer', 'Enrolled'].map(h => (
                       <th key={h} style={{
                         padding: '6px 8px', textAlign: 'left',
-                        color: 'rgba(182,189,194,0.6)', fontWeight: '600',
+                        color: 'rgba(182,189,194,0.7)', fontWeight: '600',
                         fontSize: '10px', textTransform: 'uppercase',
                         letterSpacing: '0.4px',
-                        borderBottom: '1px solid rgba(255,255,255,0.08)',
+                        borderBottom: '1px solid rgba(255,255,255,0.1)',
                       }}>
                         {h}
                       </th>
@@ -259,9 +254,15 @@ function DashboardPage() {
                 </thead>
                 <tbody>
                   {upcomingCourses.map((course, i) => (
-                    <tr key={course.id} style={{ background: i % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent' }}>
+                    <tr key={course.id} style={{
+                      background: i % 2 === 0 ? 'rgba(255,255,255,0.04)' : 'transparent',
+                    }}>
                       <td style={styles.calTd}>{fmtDate(course.start_date)}</td>
-                      <td style={{ ...styles.calTd, maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <td style={{
+                        ...styles.calTd,
+                        maxWidth: '120px', overflow: 'hidden',
+                        textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>
                         {course.title}
                       </td>
                       <td style={styles.calTd}>
@@ -283,7 +284,7 @@ function DashboardPage() {
             )}
           </div>
 
-          {/* Courses by Month chart */}
+          {/* Courses by Period */}
           <div style={styles.chartCard}>
             <div style={styles.chartHeader}>
               <span style={styles.chartTitle}>Total Courses by Period</span>
@@ -292,7 +293,10 @@ function DashboardPage() {
                   <button
                     key={v}
                     onClick={() => setCalView(v)}
-                    style={{ ...styles.toggleBtn, ...(calView === v ? styles.toggleBtnActive : {}) }}
+                    style={{
+                      ...styles.toggleBtn,
+                      ...(calView === v ? styles.toggleBtnActive : {}),
+                    }}
                   >
                     {v}
                   </button>
@@ -325,28 +329,24 @@ function DashboardPage() {
   );
 }
 
-function StatCard({ label, value, wide, sub }) {
-  return (
-    <div style={{ ...styles.statCard, ...(wide ? styles.statCardWide : {}) }}>
-      <div style={styles.statLabel}>{label}</div>
-      <div style={styles.statValue}>{value}</div>
-      {sub && (
-        <div style={{ fontSize: '11px', color: '#9baabb', marginTop: '4px' }}>{sub}</div>
-      )}
-    </div>
-  );
-}
-
 const styles = {
   page:            { padding: '30px', minHeight: '100vh', background: '#f2f4f6', fontFamily: 'Inter, sans-serif' },
   mainGrid:        { display: 'grid', gridTemplateColumns: '1fr 400px', gap: '24px', alignItems: 'start' },
   leftCol:         { display: 'flex', flexDirection: 'column', gap: '20px' },
   rightCol:        { display: 'flex', flexDirection: 'column', gap: '20px' },
+
+  // Stat cards — 4 equal cards in a 2x2 grid
   statGrid:        { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' },
-  statCard:        { background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '12px', padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: '6px' },
-  statCardWide:    { gridColumn: 'span 2' },
-  statLabel:       { fontSize: '13px', color: '#5a6878', fontWeight: '500' },
-  statValue:       { fontSize: '38px', fontWeight: '800', color: '#051c2c', lineHeight: 1, letterSpacing: '-1px' },
+  statCard:        {
+    borderRadius: '14px', padding: '22px 24px',
+    display: 'flex', flexDirection: 'column', gap: '6px',
+    color: '#ffffff',
+  },
+  statIcon:        { fontSize: '22px', marginBottom: '4px' },
+  statNum:         { fontSize: '38px', fontWeight: '800', color: '#ffffff', lineHeight: 1, letterSpacing: '-1px' },
+  statLabel:       { fontSize: '13px', color: 'rgba(255,255,255,0.75)', fontWeight: '500' },
+  statSub:         { fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' },
+
   chartsRow:       { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' },
   chartCard:       { background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '12px', padding: '18px 20px' },
   chartHeader:     { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' },
@@ -354,8 +354,9 @@ const styles = {
   toggleGroup:     { display: 'flex', background: '#f2f4f6', borderRadius: '6px', padding: '2px', gap: '2px' },
   toggleBtn:       { padding: '3px 10px', fontSize: '11px', fontWeight: '500', border: 'none', background: 'none', borderRadius: '4px', cursor: 'pointer', color: '#5a6878', fontFamily: 'Inter, sans-serif' },
   toggleBtnActive: { background: '#051c2c', color: '#ffffff' },
-  calendarCard:    { background: '#051c2c', borderRadius: '12px', padding: '18px 20px', color: '#ffffff' },
-  calTd:           { padding: '9px 8px', color: 'rgba(255,255,255,0.85)', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '12px' },
+
+  calendarCard:    { background: '#051c2c', borderRadius: '12px', padding: '20px', color: '#ffffff' },
+  calTd:           { padding: '9px 8px', color: 'rgba(255,255,255,0.85)', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: '12px' },
   noDataBox:       { padding: '24px', textAlign: 'center', color: '#9baabb', fontSize: '13px', lineHeight: 1.6, background: '#f8f9fa', borderRadius: '8px', border: '1px solid #e8ecf0' },
 };
 
