@@ -29,7 +29,8 @@ function DashboardPage() {
     ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
     : '—';
 
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun',
+                  'Jul','Aug','Sep','Oct','Nov','Dec'];
 
   const coursesByMonth = MONTHS.map((month, i) => ({
     label: month,
@@ -49,14 +50,13 @@ function DashboardPage() {
     }).length,
   }));
 
-  const calData    = calView === 'Monthly' ? coursesByMonth : coursesByQuarter;
-  const maxCal     = Math.max(...calData.map(d => d.value), 1);
+  const calData  = calView === 'Monthly' ? coursesByMonth : coursesByQuarter;
+  const maxCal   = Math.max(...calData.map(d => d.value), 1);
 
   const trendData  = satView === 'Monthly'
     ? (stats?.satisfactionTrend     || [])
     : (stats?.satisfactionQuarterly || []);
   const trendKey   = satView === 'Monthly' ? 'month' : 'quarter';
-  const maxTrend   = Math.max(...trendData.map(d => d.score), 1);
   const overallPct = stats?.overallSatisfaction || 0;
   const hasTrend   = trendData.some(d => d.score > 0);
 
@@ -70,60 +70,78 @@ function DashboardPage() {
     <div style={styles.page}>
       <div style={styles.mainGrid}>
 
-        {/* ── LEFT COLUMN ── */}
+        {/* LEFT COLUMN */}
         <div style={styles.leftCol}>
 
           <div style={{ fontSize: '20px', fontWeight: '700', color: '#051c2c', marginBottom: '4px' }}>
             Training Summary
           </div>
 
-          {/* ── STAT CARDS 2×2 ── */}
+          {/* STAT CARDS */}
           <div style={styles.statGrid}>
-            <StatCard
-              icon="🎓"
-              num={stats?.totalLearners || 0}
-              label="Total Learners"
-              color="#051c2c"
-            />
-            <StatCard
-              icon="📚"
-              num={stats?.totalCourses || 0}
-              label="Total Courses"
-              color="#1a6b3c"
-            />
-            <StatCard
-              icon="🏆"
-              num={stats?.totalLearnersTrainedThisYear || 0}
-              label="Learners Trained"
-              sub={`Jan 1 – Today ${new Date().getFullYear()}`}
-              color="#b45309"
-            />
-            <StatCard
-              icon="⏱️"
-              num={(stats?.totalCourses || 0) * 20 + 'h'}
-              label="Total Training Hours"
-              color="#1e40af"
-            />
+            <div style={{ ...styles.statCard, background: '#051c2c' }}>
+              <div style={styles.statIcon}>🎓</div>
+              <div style={styles.statNum}>{stats?.totalLearners || 0}</div>
+              <div style={styles.statLabel}>Total Learners</div>
+            </div>
+            <div style={{ ...styles.statCard, background: '#1a6b3c' }}>
+              <div style={styles.statIcon}>📚</div>
+              <div style={styles.statNum}>{stats?.totalCourses || 0}</div>
+              <div style={styles.statLabel}>Total Courses</div>
+            </div>
+            <div style={{ ...styles.statCard, background: '#b45309' }}>
+              <div style={styles.statIcon}>🏆</div>
+              <div style={styles.statNum}>{stats?.totalLearnersTrainedThisYear || 0}</div>
+              <div style={styles.statLabel}>Learners Trained</div>
+              <div style={styles.statSub}>Jan 1 – Today {new Date().getFullYear()}</div>
+            </div>
+            <div style={{ ...styles.statCard, background: '#1e40af' }}>
+              <div style={styles.statIcon}>⏱️</div>
+              <div style={styles.statNum}>{(stats?.totalCourses || 0) * 20}h</div>
+              <div style={styles.statLabel}>Total Training Hours</div>
+            </div>
           </div>
 
-          {/* ── CHARTS ROW ── */}
+          {/* CHARTS ROW */}
           <div style={styles.chartsRow}>
 
             {/* Satisfaction Trend */}
             <div style={styles.chartCard}>
               <div style={styles.chartHeader}>
                 <span style={styles.chartTitle}>Satisfaction Trend</span>
-                <Toggle value={satView} onChange={setSatView} options={['Monthly','Quarterly']} />
+                <div style={styles.toggleGroup}>
+                  {['Monthly','Quarterly'].map(v => (
+                    <button
+                      key={v}
+                      onClick={() => setSatView(v)}
+                      style={{
+                        ...styles.toggleBtn,
+                        ...(satView === v ? styles.toggleActive : {}),
+                      }}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
               </div>
               {hasTrend ? (
                 <MiniBarChart
-                  data={trendData.map(d => ({ label: d[trendKey], value: d.score }))}
+                  data={trendData.map(d => ({
+                    label: d[trendKey],
+                    value: d.score,
+                  }))}
                   maxVal={100}
                   color="#051c2c"
                   suffix="%"
                 />
               ) : (
-                <NoData text="Rate courses on the Courses page to see the trend." />
+                <div style={styles.noData}>
+                  No data yet.
+                  <br />
+                  <span style={{ fontSize: '11px' }}>
+                    Rate courses on the Courses page to see the trend.
+                  </span>
+                </div>
               )}
               <div style={styles.chartSub}>
                 Cumulative avg satisfaction % — {new Date().getFullYear()}
@@ -136,13 +154,22 @@ function DashboardPage() {
                 <span style={styles.chartTitle}>Satisfaction Analytics</span>
               </div>
               {overallPct > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '8px 0' }}>
+                <div style={{
+                  display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', gap: '10px', padding: '8px 0',
+                }}>
                   <div style={{ position: 'relative', width: '110px', height: '110px' }}>
-                    <svg viewBox="0 0 110 110" style={{ width: '110px', height: '110px', transform: 'rotate(-90deg)' }}>
-                      <circle cx="55" cy="55" r="46" fill="none" stroke="#e8ecf0" strokeWidth="10" />
+                    <svg
+                      viewBox="0 0 110 110"
+                      style={{ width: '110px', height: '110px', transform: 'rotate(-90deg)' }}
+                    >
                       <circle
-                        cx="55" cy="55" r="46" fill="none"
-                        stroke="#051c2c" strokeWidth="10"
+                        cx="55" cy="55" r="46"
+                        fill="none" stroke="#e8ecf0" strokeWidth="10"
+                      />
+                      <circle
+                        cx="55" cy="55" r="46"
+                        fill="none" stroke="#051c2c" strokeWidth="10"
                         strokeDasharray={`${2 * Math.PI * 46 * overallPct / 100} ${2 * Math.PI * 46}`}
                         strokeLinecap="round"
                       />
@@ -168,24 +195,31 @@ function DashboardPage() {
                   </div>
                 </div>
               ) : (
-                <NoData text="Rate courses to see the overall score." />
+                <div style={styles.noData}>
+                  No data yet.
+                  <br />
+                  <span style={{ fontSize: '11px' }}>Rate courses to see the overall score.</span>
+                </div>
               )}
             </div>
 
           </div>
         </div>
 
-        {/* ── RIGHT COLUMN ── */}
+        {/* RIGHT COLUMN */}
         <div style={styles.rightCol}>
 
-          {/* Upcoming Training */}
-          <div style={styles.calendarCard}>
-            <div style={{ fontSize: '14px', fontWeight: '700', color: '#ffffff', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              📅 Upcoming TrainingS
+          {/* Upcoming Trainings */}
+          <div style={styles.calCard}>
+            <div style={{
+              fontSize: '14px', fontWeight: '700',
+              color: '#ffffff', marginBottom: '14px',
+            }}>
+              📅 Upcoming Trainings
             </div>
             {upcomingCourses.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {upcomingCourses.map((course, i) => (
+                {upcomingCourses.map(course => (
                   <div key={course.id} style={{
                     display: 'flex', alignItems: 'center', gap: '10px',
                     padding: '9px 10px', borderRadius: '8px',
@@ -202,7 +236,7 @@ function DashboardPage() {
                       <span style={{ fontSize: '10px', color: 'rgba(182,189,194,0.7)', fontWeight: '600', lineHeight: 1 }}>
                         {fmtDate(course.start_date).split(' ')[1] || '—'}
                       </span>
-                      <span style={{ fontSize: '13px', color: '#ffffff', fontWeight: '700', lineHeight: 1 }}>
+                      <span style={{ fontSize: '13px', color: '#ffffff', fontWeight: '700', lineHeight: 1.2 }}>
                         {fmtDate(course.start_date).split(' ')[0] || '—'}
                       </span>
                     </div>
@@ -221,7 +255,9 @@ function DashboardPage() {
                       <div style={{ fontSize: '12px', fontWeight: '700', color: '#ffffff' }}>
                         {course.enrolled_count || 0}
                       </div>
-                      <div style={{ fontSize: '10px', color: 'rgba(182,189,194,0.6)' }}>enrolled</div>
+                      <div style={{ fontSize: '10px', color: 'rgba(182,189,194,0.6)' }}>
+                        enrolled
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -237,7 +273,20 @@ function DashboardPage() {
           <div style={styles.chartCard}>
             <div style={styles.chartHeader}>
               <span style={styles.chartTitle}>Total Courses by Period</span>
-              <Toggle value={calView} onChange={setCalView} options={['Monthly','Quarterly']} />
+              <div style={styles.toggleGroup}>
+                {['Monthly','Quarterly'].map(v => (
+                  <button
+                    key={v}
+                    onClick={() => setCalView(v)}
+                    style={{
+                      ...styles.toggleBtn,
+                      ...(calView === v ? styles.toggleActive : {}),
+                    }}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
             </div>
             <MiniBarChart
               data={calData}
@@ -253,58 +302,13 @@ function DashboardPage() {
   );
 }
 
-function StatCard({ icon, num, label, sub, color }) {
-  return (
-    <div style={{
-      background: color, borderRadius: '14px',
-      padding: '20px 22px', display: 'flex',
-      flexDirection: 'column', gap: '6px',
-    }}>
-      <div style={{ fontSize: '22px', marginBottom: '2px' }}>{icon}</div>
-      <div style={{ fontSize: '36px', fontWeight: '800', color: '#ffffff', lineHeight: 1, letterSpacing: '-1px' }}>
-        {num}
-      </div>
-      <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.75)', fontWeight: '500' }}>
-        {label}
-      </div>
-      {sub && (
-        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginTop: '1px' }}>
-          {sub}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Toggle({ value, onChange, options }) {
-  return (
-    <div style={{
-      display: 'flex', background: '#f2f4f6',
-      borderRadius: '6px', padding: '2px', gap: '2px',
-    }}>
-      {options.map(v => (
-        <button
-          key={v}
-          onClick={() => onChange(v)}
-          style={{
-            padding: '3px 10px', fontSize: '11px', fontWeight: '500',
-            border: 'none', borderRadius: '4px', cursor: 'pointer',
-            fontFamily: 'Inter, sans-serif',
-            background: value === v ? '#051c2c' : 'none',
-            color:      value === v ? '#ffffff' : '#5a6878',
-          }}
-        >
-          {v}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function MiniBarChart({ data, maxVal, color, suffix }) {
   const max = Math.max(maxVal, 1);
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', height: '120px', padding: '0 2px' }}>
+    <div style={{
+      display: 'flex', alignItems: 'flex-end',
+      gap: '3px', height: '110px', padding: '0 2px',
+    }}>
       {data.map((d, i) => {
         const pct = Math.round((d.value / max) * 100);
         return (
@@ -312,8 +316,8 @@ function MiniBarChart({ data, maxVal, color, suffix }) {
             key={i}
             style={{
               flex: 1, display: 'flex', flexDirection: 'column',
-              alignItems: 'center', gap: '4px', height: '100%',
-              justifyContent: 'flex-end',
+              alignItems: 'center', gap: '3px',
+              height: '100%', justifyContent: 'flex-end',
             }}
           >
             {d.value > 0 && (
@@ -327,11 +331,13 @@ function MiniBarChart({ data, maxVal, color, suffix }) {
             <div
               title={`${d.label}: ${d.value}${suffix}`}
               style={{
-                width: '100%', borderRadius: '3px 3px 0 0',
+                width: '100%',
+                borderRadius: '3px 3px 0 0',
                 background: d.value > 0 ? color : '#e8ecf0',
-                height: d.value > 0 ? `${Math.max(pct, 6)}%` : '4px',
+                height: d.value > 0 ? `${Math.max(pct, 8)}%` : '4px',
                 transition: 'height 0.3s ease',
                 minHeight: '4px',
+                cursor: 'default',
               }}
             />
             <div style={{
@@ -349,33 +355,27 @@ function MiniBarChart({ data, maxVal, color, suffix }) {
   );
 }
 
-function NoData({ text }) {
-  return (
-    <div style={{
-      padding: '24px 16px', textAlign: 'center',
-      color: '#9baabb', fontSize: '12px', lineHeight: 1.6,
-      background: '#f8f9fa', borderRadius: '8px',
-      border: '1px solid #e8ecf0',
-    }}>
-      No data yet.
-      <br />
-      <span style={{ fontSize: '11px' }}>{text}</span>
-    </div>
-  );
-}
-
 const styles = {
   page:        { padding: '30px', minHeight: '100vh', background: '#f2f4f6', fontFamily: 'Inter, sans-serif' },
   mainGrid:    { display: 'grid', gridTemplateColumns: '1fr 380px', gap: '24px', alignItems: 'start' },
   leftCol:     { display: 'flex', flexDirection: 'column', gap: '20px' },
   rightCol:    { display: 'flex', flexDirection: 'column', gap: '20px' },
   statGrid:    { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' },
+  statCard:    { borderRadius: '14px', padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: '6px' },
+  statIcon:    { fontSize: '22px', marginBottom: '2px' },
+  statNum:     { fontSize: '36px', fontWeight: '800', color: '#ffffff', lineHeight: 1, letterSpacing: '-1px' },
+  statLabel:   { fontSize: '13px', color: 'rgba(255,255,255,0.75)', fontWeight: '500' },
+  statSub:     { fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginTop: '1px' },
   chartsRow:   { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' },
   chartCard:   { background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '12px', padding: '18px 20px' },
   chartHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' },
   chartTitle:  { fontSize: '13px', fontWeight: '600', color: '#051c2c' },
   chartSub:    { fontSize: '11px', color: '#9baabb', textAlign: 'center', marginTop: '8px' },
-  calendarCard:{ background: '#051c2c', borderRadius: '12px', padding: '20px', color: '#ffffff' },
+  toggleGroup: { display: 'flex', background: '#f2f4f6', borderRadius: '6px', padding: '2px', gap: '2px' },
+  toggleBtn:   { padding: '3px 10px', fontSize: '11px', fontWeight: '500', border: 'none', background: 'none', borderRadius: '4px', cursor: 'pointer', color: '#5a6878', fontFamily: 'Inter, sans-serif' },
+  toggleActive:{ background: '#051c2c', color: '#ffffff' },
+  calCard:     { background: '#051c2c', borderRadius: '12px', padding: '20px', color: '#ffffff' },
+  noData:      { padding: '20px 16px', textAlign: 'center', color: '#9baabb', fontSize: '12px', lineHeight: 1.6, background: '#f8f9fa', borderRadius: '8px', border: '1px solid #e8ecf0' },
 };
 
 export default DashboardPage;
