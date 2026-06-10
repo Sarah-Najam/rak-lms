@@ -6,16 +6,18 @@ const ITEMS_PER_PAGE = 20;
 
 function DepartmentsPage() {
 
-  const [departments,   setDepartments]   = useState([]);
-  const [selected,      setSelected]      = useState(null);
-  const [showAdd,       setShowAdd]       = useState(false);
-  const [searchTerm,    setSearchTerm]    = useState('');
-  const [loading,       setLoading]       = useState(true);
-  const [currentPage,   setCurrentPage]   = useState(1);
-  const [courses,       setCourses]       = useState([]);
-  const [deptLearners,  setDeptLearners]  = useState([]);
-  const [deptLoading,   setDeptLoading]   = useState(false);
-  const [profileLearner,setProfileLearner]= useState(null);
+  const [departments,    setDepartments]    = useState([]);
+  const [selected,       setSelected]       = useState(null);
+  const [showAdd,        setShowAdd]        = useState(false);
+  const [searchTerm,     setSearchTerm]     = useState('');
+  const [loading,        setLoading]        = useState(true);
+  const [currentPage,    setCurrentPage]    = useState(1);
+  const [courses,        setCourses]        = useState([]);
+  const [deptLearners,   setDeptLearners]   = useState([]);
+  const [deptLoading,    setDeptLoading]    = useState(false);
+  const [learnerCourses, setLearnerCourses] = useState({});
+  const [profileLearner, setProfileLearner] = useState(null);
+
   const [form, setForm] = useState({
     name: '', hod: '', designation: '', population: ''
   });
@@ -46,9 +48,7 @@ function DepartmentsPage() {
   const totalPopulation = departments.reduce((s, d) => s + (+d.population || 0), 0);
   const totalLearners   = departments.reduce((s, d) => s + (+d.learner_count || 0), 0);
 
-  const getDeptCourses = (deptId) => courses;
-
-  const getDeptTotalHours = (deptId) =>
+  const getDeptTotalHours = () =>
     courses.reduce((s, c) => {
       const hours    = +c.duration_hours  || 0;
       const attended = +c.attended_count  || 0;
@@ -59,10 +59,24 @@ function DepartmentsPage() {
     setSelected(dept);
     setDeptLoading(true);
     setDeptLearners([]);
+    setLearnerCourses({});
     try {
       const all = await api.getLearners();
       if (Array.isArray(all)) {
-        setDeptLearners(all.filter(l => l.department_id === dept.id));
+        const dLearners = all.filter(l => l.department_id === dept.id);
+        setDeptLearners(dLearners);
+
+        // Load courses for each learner
+        const coursesMap = {};
+        await Promise.all(dLearners.map(async learner => {
+          try {
+            const lCourses = await api.getEnrollmentsByLearner(learner.id);
+            if (Array.isArray(lCourses)) coursesMap[learner.id] = lCourses;
+          } catch {
+            coursesMap[learner.id] = [];
+          }
+        }));
+        setLearnerCourses(coursesMap);
       }
     } catch (err) {
       setDeptLearners([]);
@@ -93,6 +107,12 @@ function DepartmentsPage() {
 
   const initials = name =>
     name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
+
+  const statusColor = status => {
+    if (status === 'Completed' || status === 'Attended') return { bg: '#dcfce7', color: '#15803d' };
+    if (status === 'Ongoing')   return { bg: '#dbeafe', color: '#1d4ed8' };
+    return { bg: '#fef9c3', color: '#a16207' };
+  };
 
   return (
     <div style={styles.page}>
@@ -187,7 +207,7 @@ function DepartmentsPage() {
               </thead>
               <tbody>
                 {paginated.map((dept, i) => {
-                  const totalHours = getDeptTotalHours(dept.id);
+                  const totalHours = getDeptTotalHours();
                   return (
                     <tr key={dept.id} style={styles.tr}>
                       <td style={styles.td}>
@@ -272,7 +292,7 @@ function DepartmentsPage() {
       {/* ── DEPARTMENT DETAIL POPUP ── */}
       {selected && (
         <div style={styles.overlay} onClick={() => { setSelected(null); setProfileLearner(null); }}>
-          <div style={{ ...styles.modal, maxWidth: '680px' }} onClick={e => e.stopPropagation()}>
+          <div style={{ ...styles.modal, maxWidth: '720px' }} onClick={e => e.stopPropagation()}>
             <div style={styles.modalHeader}>
               <span style={styles.modalTitle}>{selected.name}</span>
               <button style={styles.modalClose} onClick={() => { setSelected(null); setProfileLearner(null); }}>×</button>
@@ -300,10 +320,10 @@ function DepartmentsPage() {
               {/* Stats */}
               <div style={styles.profileStats}>
                 {[
-                  ['Total Learners',   deptLearners.length],
-                  ['Active',           deptLearners.filter(l => l.status === 'Active').length],
-                  ['Population',       selected.population || 0],
-                  ['Training Hours',   getDeptTotalHours(selected.id) + 'h'],
+                  ['Total Learners',  deptLearners.length],
+                  ['Active',          deptLearners.filter(l => l.status === 'Active').length],
+                  ['Population',      selected.population || 0],
+                  ['Training Hours',  getDeptTotalHours() + 'h'],
                 ].map(([k, v]) => (
                   <div key={k} style={styles.profileStatCard}>
                     <div style={styles.profileStatNum}>{v}</div>
@@ -312,7 +332,7 @@ function DepartmentsPage() {
                 ))}
               </div>
 
-              {/* Learners list */}
+              {/* Learners list with course badges */}
               <div>
                 <div style={styles.sectionLabel}>
                   Learners in this Department
@@ -326,43 +346,98 @@ function DepartmentsPage() {
                     Loading learners...
                   </div>
                 ) : deptLearners.length > 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {deptLearners.map(learner => (
-                      <div
-                        key={learner.id}
-                        onClick={() => setProfileLearner(learner)}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: '12px',
-                          padding: '10px 14px', borderRadius: '8px', cursor: 'pointer',
-                          border: '1px solid #e8ecf0', background: '#f8f9fa',
-                        }}
-                      >
-                        <div style={{
-                          width: '32px', height: '32px', borderRadius: '50%',
-                          background: '#051c2c', color: '#ffffff',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: '11px', fontWeight: '700', flexShrink: 0,
-                        }}>
-                          {learner.name.split(' ').slice(0,2).map(w => w[0]).join('')}
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: '13px', fontWeight: '600', color: '#051c2c' }}>
-                            {learner.name}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {deptLearners.map(learner => {
+                      const lCourses = learnerCourses[learner.id] || [];
+                      return (
+                        <div
+                          key={learner.id}
+                          style={{
+                            padding: '12px 14px', borderRadius: '10px',
+                            border: '1px solid #e8ecf0', background: '#f8f9fa',
+                          }}
+                        >
+                          {/* Learner header row */}
+                          <div
+                            style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
+                            onClick={() => setProfileLearner(profileLearner?.id === learner.id ? null : learner)}
+                          >
+                            <div style={{
+                              width: '34px', height: '34px', borderRadius: '50%',
+                              background: '#051c2c', color: '#ffffff',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: '11px', fontWeight: '700', flexShrink: 0,
+                            }}>
+                              {learner.name.split(' ').slice(0,2).map(w => w[0]).join('')}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: '13px', fontWeight: '600', color: '#051c2c' }}>
+                                {learner.name}
+                              </div>
+                              <div style={{ fontSize: '11px', color: '#9baabb', marginTop: '1px' }}>
+                                {learner.designation || '—'} · {learner.emp_id || '—'}
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{
+                                background: learner.status === 'Active' ? '#dcfce7' : '#fee2e2',
+                                color:      learner.status === 'Active' ? '#15803d' : '#991b1b',
+                                padding: '2px 8px', borderRadius: '10px',
+                                fontSize: '11px', fontWeight: '600',
+                              }}>
+                                {learner.status}
+                              </span>
+                              <span style={{ fontSize: '11px', color: '#9baabb' }}>
+                                {lCourses.length} course{lCourses.length !== 1 ? 's' : ''}
+                              </span>
+                              <span style={{ fontSize: '12px', color: '#9baabb' }}>
+                                {profileLearner?.id === learner.id ? '▲' : '▼'}
+                              </span>
+                            </div>
                           </div>
-                          <div style={{ fontSize: '11px', color: '#9baabb', marginTop: '2px' }}>
-                            {learner.designation || '—'} · {learner.emp_id || '—'}
-                          </div>
+
+                          {/* Course badges — show when learner is expanded */}
+                          {profileLearner?.id === learner.id && (
+                            <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #e8ecf0' }}>
+                              {lCourses.length > 0 ? (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                  {lCourses.map((course, ci) => {
+                                    const isDone = course.attended === true ||
+                                      course.enrollment_status === 'Attended' ||
+                                      course.enrollment_status === 'Completed';
+                                    const sc = statusColor(isDone ? 'Completed' : course.status || 'Pending');
+                                    return (
+                                      <span
+                                        key={ci}
+                                        title={`${course.title} — ${isDone ? 'Attended' : course.status || 'Enrolled'}`}
+                                        style={{
+                                          display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                          padding: '4px 10px', borderRadius: '20px',
+                                          background: sc.bg, color: sc.color,
+                                          fontSize: '11px', fontWeight: '600',
+                                          border: `1px solid ${sc.color}20`,
+                                          maxWidth: '200px', overflow: 'hidden',
+                                          textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                        }}
+                                      >
+                                        {isDone ? '✅' : '📚'}
+                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                          {course.title}
+                                        </span>
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <div style={{ fontSize: '12px', color: '#9baabb', fontStyle: 'italic' }}>
+                                  Not enrolled in any courses yet.
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
-                        <span style={{
-                          background: learner.status === 'Active' ? '#dcfce7' : '#fee2e2',
-                          color:      learner.status === 'Active' ? '#15803d' : '#991b1b',
-                          padding: '2px 8px', borderRadius: '10px',
-                          fontSize: '11px', fontWeight: '600',
-                        }}>
-                          {learner.status}
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div style={{ padding: '20px', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #e8ecf0', textAlign: 'center', fontSize: '13px', color: '#9baabb' }}>
@@ -374,48 +449,6 @@ function DepartmentsPage() {
             </div>
             <div style={styles.modalFooter}>
               <button style={styles.cancelBtn} onClick={() => { setSelected(null); setProfileLearner(null); }}>Close</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── LEARNER MINI PROFILE FROM DEPT POPUP ── */}
-      {profileLearner && (
-        <div style={{ ...styles.overlay, zIndex: 1100 }} onClick={() => setProfileLearner(null)}>
-          <div style={{ ...styles.modal, maxWidth: '420px' }} onClick={e => e.stopPropagation()}>
-            <div style={styles.modalHeader}>
-              <span style={styles.modalTitle}>Learner Profile</span>
-              <button style={styles.modalClose} onClick={() => setProfileLearner(null)}>×</button>
-            </div>
-            <div style={styles.modalBody}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '16px', background: '#f8f9fa', borderRadius: '10px', border: '1px solid #e8ecf0', marginBottom: '16px' }}>
-                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#051c2c', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: '700', flexShrink: 0 }}>
-                  {profileLearner.name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase()}
-                </div>
-                <div>
-                  <div style={{ fontSize: '16px', fontWeight: '700', color: '#051c2c' }}>{profileLearner.name}</div>
-                  <div style={{ fontSize: '12px', color: '#5a6878', marginTop: '2px' }}>{profileLearner.designation || '—'}</div>
-                </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                {[
-                  ['Emp ID',      profileLearner.emp_id      || '—'],
-                  ['Email',       profileLearner.email       || '—'],
-                  ['Gender',      profileLearner.gender      || '—'],
-                  ['Nationality', profileLearner.nationality || '—'],
-                  ['Status',      profileLearner.status      || '—'],
-                  ['Joined',      profileLearner.created_at
-                    ? new Date(profileLearner.created_at).toLocaleDateString('en-GB') : '—'],
-                ].map(([k, v]) => (
-                  <div key={k}>
-                    <div style={{ fontSize: '10px', fontWeight: '700', color: '#9baabb', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>{k}</div>
-                    <div style={{ fontSize: '13px', fontWeight: '500', color: '#051c2c' }}>{v}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div style={styles.modalFooter}>
-              <button style={styles.cancelBtn} onClick={() => setProfileLearner(null)}>Close</button>
             </div>
           </div>
         </div>
