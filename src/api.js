@@ -135,8 +135,18 @@ const api = {
       headers: headers(),
     }).then(r => r.json()),
 
+  getTrainerSatisfactionById: (id, period) =>
+    fetch(`${BASE_URL}/trainers/${id}/satisfaction?period=${period}`, {
+      headers: headers(),
+    }).then(r => r.json()),
+
+  getTrainerSatisfactionByName: (name, period) =>
+    fetch(`${BASE_URL}/trainers/by-name/satisfaction?name=${encodeURIComponent(name)}&period=${period}`, {
+      headers: headers(),
+    }).then(r => r.json()),
+
   // ── CALENDAR ──────────────────────────────────────────────
-getCalendar: () =>
+  getCalendar: () =>
     fetch(`${BASE_URL}/calendar`, { headers: headers() }).then(r => r.json()),
 
   addCalendarEntry: (data) =>
@@ -165,10 +175,14 @@ getCalendar: () =>
 
   // ── ENROLLMENTS ───────────────────────────────────────────
   getEnrollmentsByLearner: (id) =>
-    fetch(`${BASE_URL}/enrollments/learner/${id}`, { headers: headers() }).then(r => r.json()),
+    fetch(`${BASE_URL}/enrollments/learner/${id}`, {
+      headers: headers(),
+    }).then(r => r.json()),
 
   getEnrollmentsByCourse: (id) =>
-    fetch(`${BASE_URL}/enrollments/course/${id}`, { headers: headers() }).then(r => r.json()),
+    fetch(`${BASE_URL}/enrollments/course/${id}`, {
+      headers: headers(),
+    }).then(r => r.json()),
 
   enrollLearner: (learner_id, course_id) =>
     fetch(`${BASE_URL}/enrollments`, {
@@ -201,61 +215,6 @@ getCalendar: () =>
     });
     return response.json();
   },
-getEnrollmentsByLearner: (id) =>
-    fetch(`${BASE_URL}/enrollments/learner/${id}`, { headers: headers() }).then(r => r.json()),
-
-  getEnrollmentsByCourse: (id) =>
-    fetch(`${BASE_URL}/enrollments/course/${id}`, { headers: headers() }).then(r => r.json()),
-
-  enrollLearner: (learner_id, course_id) =>
-    fetch(`${BASE_URL}/enrollments`, {
-      method: 'POST',
-      headers: headers(),
-      body: JSON.stringify({ learner_id, course_id }),
-    }).then(r => r.json()),
-
-  unenrollLearner: (learner_id, course_id) =>
-    fetch(`${BASE_URL}/enrollments`, {
-      method: 'DELETE',
-      headers: headers(),
-      body: JSON.stringify({ learner_id, course_id }),
-    }).then(r => r.json()),
-
-    sendCheckinLinks: (courseId) =>
-    fetch(`${BASE_URL}/enrollments/send-checkin/${courseId}`, {
-      method: 'POST',
-      headers: headers(),
-    }).then(r => r.json()),
-    updateTrainer: (id, data) =>
-    fetch(`${BASE_URL}/trainers/${id}`, {
-      method: 'PUT',
-      headers: headers(),
-      body: JSON.stringify(data),
-    }).then(r => r.json()),
-
-  deleteTrainer: (id) =>
-    fetch(`${BASE_URL}/trainers/${id}`, {
-      method: 'DELETE',
-      headers: headers(),
-    }).then(r => r.json()),
-
-  getUsers: () =>
-    fetch(`${BASE_URL}/auth/users`, { headers: headers() }).then(r => r.json()),
-
-  verifyInvite: (token) =>
-    fetch(`${BASE_URL}/auth/verify-invite?token=${token}`).then(r => r.json()),
-
-  setPassword: (token, password) =>
-    fetch(`${BASE_URL}/auth/set-password`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, password }),
-    }).then(r => r.json()),
-    getTrainerSatisfactionById: (id, period) =>
-    fetch(`${BASE_URL}/trainers/${id}/satisfaction?period=${period}`, { headers: headers() }).then(r => r.json()),
-
-  getTrainerSatisfactionByName: (name, period) =>
-    fetch(`${BASE_URL}/trainers/by-name/satisfaction?name=${encodeURIComponent(name)}&period=${period}`, { headers: headers() }).then(r => r.json()),
 };
 
 export default api;

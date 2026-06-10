@@ -1,18 +1,17 @@
 import React, { useState } from 'react';
-import Sidebar        from './components/Sidebar';
-import CheckinPage from './pages/CheckinPage';
-import Topbar         from './components/Topbar';
-import LoginPage      from './pages/LoginPage';
-import DashboardPage  from './pages/DashboardPage';
-import LearnersPage   from './pages/LearnersPage';
-import CoursesPage    from './pages/CoursesPage';
+import Sidebar         from './components/Sidebar';
+import CheckinPage     from './pages/CheckinPage';
+import Topbar          from './components/Topbar';
+import LoginPage       from './pages/LoginPage';
+import DashboardPage   from './pages/DashboardPage';
+import LearnersPage    from './pages/LearnersPage';
+import CoursesPage     from './pages/CoursesPage';
 import DepartmentsPage from './pages/DepartmentsPage';
-import TrainersPage   from './pages/TrainersPage';
-import CalendarPage   from './pages/CalendarPage';
-import ReportsPage    from './pages/ReportsPage';
-import SettingsPage   from './pages/SettingsPage';
+import TrainersPage    from './pages/TrainersPage';
+import CalendarPage    from './pages/CalendarPage';
+import ReportsPage     from './pages/ReportsPage';
+import SettingsPage    from './pages/SettingsPage';
 import SetPasswordPage from './pages/SetPasswordPage';
-
 
 function App() {
 
@@ -72,9 +71,7 @@ function App() {
   };
 
   // ── Check-in page (no login needed) ──
-  if (window.location.pathname === '/checkin' ||
-      window.location.search.includes('token=') &&
-      !window.location.search.includes('login')) {
+  if (window.location.pathname === '/checkin') {
     return <CheckinPage />;
   }
 
@@ -84,11 +81,6 @@ function App() {
   }
 
   // ── Not logged in ──
-  if (window.location.pathname === '/checkin' ||
-    window.location.search.includes('token=')) {
-  return <CheckinPage />;
-}
-
   if (!currentUser) {
     return <LoginPage onLogin={handleLogin} />;
   }
