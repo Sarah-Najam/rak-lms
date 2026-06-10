@@ -50,8 +50,8 @@ function DashboardPage() {
     }).length,
   }));
 
-  const calData  = calView === 'Monthly' ? coursesByMonth : coursesByQuarter;
-  const maxCal   = Math.max(...calData.map(d => d.value), 1);
+  const calData    = calView === 'Monthly' ? coursesByMonth : coursesByQuarter;
+  const maxCal     = Math.max(...calData.map(d => d.value), 1);
 
   const trendData  = satView === 'Monthly'
     ? (stats?.satisfactionTrend     || [])
@@ -70,37 +70,44 @@ function DashboardPage() {
     <div style={styles.page}>
       <div style={styles.mainGrid}>
 
-        {/* LEFT COLUMN */}
+        {/* ── LEFT COLUMN ── */}
         <div style={styles.leftCol}>
 
-          <div style={{ fontSize: '20px', fontWeight: '700', color: '#051c2c', marginBottom: '4px' }}>
+          <div style={{ fontSize: '20px', fontWeight: '700', color: '#051c2c' }}>
             Training Summary
           </div>
 
-          {/* STAT CARDS */}
-        <div style={{ ...styles.statCard, background: '#051C2C' }}>
-  <div style={styles.statIcon}>🎓</div>
-  <div style={styles.statNum}>{stats?.totalLearners || 0}</div>
-  <div style={styles.statLabel}>Total Learners</div>
-</div>
-<div style={{ ...styles.statCard, background: '#AF5F46' }}>
-  <div style={styles.statIcon}>📚</div>
-  <div style={styles.statNum}>{stats?.totalCourses || 0}</div>
-  <div style={styles.statLabel}>Total Courses</div>
-</div>
-<div style={{ ...styles.statCard, background: '#6a9ea8' }}>
-  <div style={styles.statIcon}>🏆</div>
-  <div style={styles.statNum}>{stats?.totalLearnersTrainedThisYear || 0}</div>
-  <div style={styles.statLabel}>Learners Trained</div>
-  <div style={styles.statSub}>Jan 1 – Today {new Date().getFullYear()}</div>
-</div>
-<div style={{ ...styles.statCard, background: '#7a9e7a' }}>
-  <div style={styles.statIcon}>⏱️</div>
-  <div style={styles.statNum}>{(stats?.totalCourses || 0) * 20}h</div>
-  <div style={styles.statLabel}>Total Training Hours</div>
-</div>
+          {/* ── 2×2 STAT CARDS ── */}
+          <div style={styles.statGrid}>
 
-          {/* CHARTS ROW */}
+            <div style={{ ...styles.statCard, background: '#051C2C' }}>
+              <div style={styles.statIcon}>🎓</div>
+              <div style={styles.statNum}>{stats?.totalLearners || 0}</div>
+              <div style={styles.statLabel}>Total Learners</div>
+            </div>
+
+            <div style={{ ...styles.statCard, background: '#AF5F46' }}>
+              <div style={styles.statIcon}>📚</div>
+              <div style={styles.statNum}>{stats?.totalCourses || 0}</div>
+              <div style={styles.statLabel}>Total Courses</div>
+            </div>
+
+            <div style={{ ...styles.statCard, background: '#6a9ea8' }}>
+              <div style={styles.statIcon}>🏆</div>
+              <div style={styles.statNum}>{stats?.totalLearnersTrainedThisYear || 0}</div>
+              <div style={styles.statLabel}>Learners Trained</div>
+              <div style={styles.statSub}>Jan 1 – Today {new Date().getFullYear()}</div>
+            </div>
+
+            <div style={{ ...styles.statCard, background: '#7a9e7a' }}>
+              <div style={styles.statIcon}>⏱️</div>
+              <div style={styles.statNum}>{(stats?.totalCourses || 0) * 20}h</div>
+              <div style={styles.statLabel}>Total Training Hours</div>
+            </div>
+
+          </div>
+
+          {/* ── CHARTS ROW ── */}
           <div style={styles.chartsRow}>
 
             {/* Satisfaction Trend */}
@@ -204,7 +211,7 @@ function DashboardPage() {
           </div>
         </div>
 
-        {/* RIGHT COLUMN */}
+        {/* ── RIGHT COLUMN ── */}
         <div style={styles.rightCol}>
 
           {/* Upcoming Trainings */}
@@ -319,10 +326,7 @@ function MiniBarChart({ data, maxVal, color, suffix }) {
             }}
           >
             {d.value > 0 && (
-              <div style={{
-                fontSize: '9px', fontWeight: '700',
-                color: '#5a6878', lineHeight: 1,
-              }}>
+              <div style={{ fontSize: '9px', fontWeight: '700', color: '#5a6878', lineHeight: 1 }}>
                 {d.value}{suffix}
               </div>
             )}
@@ -358,12 +362,12 @@ const styles = {
   mainGrid:    { display: 'grid', gridTemplateColumns: '1fr 380px', gap: '24px', alignItems: 'start' },
   leftCol:     { display: 'flex', flexDirection: 'column', gap: '20px' },
   rightCol:    { display: 'flex', flexDirection: 'column', gap: '20px' },
-  statGrid:  { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' },
-statCard:  { borderRadius: '14px', padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: '6px' },
-statIcon:  { fontSize: '22px', marginBottom: '2px' },
-statNum:   { fontSize: '36px', fontWeight: '800', color: '#ffffff', lineHeight: 1, letterSpacing: '-1px' },
-statLabel: { fontSize: '13px', color: 'rgba(255,255,255,0.75)', fontWeight: '500' },
-statSub:   { fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginTop: '1px' },
+  statGrid:    { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' },
+  statCard:    { borderRadius: '14px', padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: '6px' },
+  statIcon:    { fontSize: '22px', marginBottom: '2px' },
+  statNum:     { fontSize: '36px', fontWeight: '800', color: '#ffffff', lineHeight: 1, letterSpacing: '-1px' },
+  statLabel:   { fontSize: '13px', color: 'rgba(255,255,255,0.75)', fontWeight: '500' },
+  statSub:     { fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginTop: '1px' },
   chartsRow:   { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' },
   chartCard:   { background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '12px', padding: '18px 20px' },
   chartHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' },
