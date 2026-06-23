@@ -25,21 +25,27 @@ function LearnersPage() {
   const [loading,        setLoading]        = useState(true);
   const [selected,       setSelected]       = useState(null);
   const [currentPage,    setCurrentPage]    = useState(1);
-  const [stats,          setStats]          = useState(null);
+  const [enrollStats,    setEnrollStats]    = useState({ enrolled: 0, attended: 0 });
 
   const emptyForm = {
     empId: '', name: '', nationality: '', designation: '',
     department: '', email: '', gender: '', status: 'Active',
+    learnerLevel: '', age: '',
   };
   const [form,     setForm]     = useState(emptyForm);
   const [editForm, setEditForm] = useState(emptyForm);
 
   useEffect(() => {
-  loadLearners();
-  api.getDepartments().then(data => { if (Array.isArray(data)) setDepartments(data); });
-  api.getCourses().then(data => { if (Array.isArray(data)) setAllCourses(data); });
-  api.getReports().then(data => { setStats(data); });
-}, []);
+    loadLearners();
+    api.getDepartments().then(data => { if (Array.isArray(data)) setDepartments(data); });
+    api.getCourses().then(data => { if (Array.isArray(data)) setAllCourses(data); });
+    api.getReports().then(stats => {
+      setEnrollStats({
+        enrolled: stats?.totalEnrolled || 0,
+        attended: stats?.totalAttended || 0,
+      });
+    });
+  }, []);
 
   const loadLearners = () => {
     api.getLearners()
@@ -55,6 +61,9 @@ function LearnersPage() {
   const emiratiFemale   = emiratiLearners.filter(l => l.gender === 'Female');
   const allMale         = learners.filter(l => l.gender === 'Male');
   const allFemale       = learners.filter(l => l.gender === 'Female');
+
+  const activeLearnersCount   = learners.filter(l => l.status === 'Active').length;
+  const inactiveLearnersCount = learners.filter(l => l.status !== 'Active').length;
 
   const filtered = learners.filter(l => {
     const name  = l.name   || '';
@@ -72,10 +81,6 @@ function LearnersPage() {
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
-
-  const avgHours = learners.length > 0
-    ? Math.round(learners.reduce((s, l) => s + (l.cost || 0) / 100, 0) / learners.length)
-    : 0;
 
   const totalTrainingHours = profileCourses.reduce((s, c) => {
     if (c.attended) return s + (+c.duration_hours || 0);
@@ -102,6 +107,8 @@ function LearnersPage() {
         email:         form.email,
         designation:   form.designation,
         status:        form.status,
+        learner_level: form.learnerLevel,
+        age:           +form.age || null,
       });
       if (newLearner.id) {
         loadLearners();
@@ -126,6 +133,8 @@ function LearnersPage() {
         email:         editForm.email,
         designation:   editForm.designation,
         status:        editForm.status,
+        learner_level: editForm.learnerLevel,
+        age:           +editForm.age || null,
       });
       if (updated.id) {
         loadLearners();
@@ -142,14 +151,16 @@ function LearnersPage() {
   const openEdit = (learner) => {
     setSelected(learner);
     setEditForm({
-      empId:       learner.emp_id        || '',
-      name:        learner.name          || '',
-      nationality: learner.nationality   || '',
-      designation: learner.designation   || '',
-      department:  learner.department_id || '',
-      email:       learner.email         || '',
-      gender:      learner.gender        || '',
-      status:      learner.status        || 'Active',
+      empId:        learner.emp_id        || '',
+      name:         learner.name          || '',
+      nationality:  learner.nationality   || '',
+      designation:  learner.designation   || '',
+      department:   learner.department_id || '',
+      email:        learner.email         || '',
+      gender:       learner.gender        || '',
+      status:       learner.status        || 'Active',
+      learnerLevel: learner.learner_level || '',
+      age:          learner.age           || '',
     });
     setShowEdit(true);
     setActionMenu(null);
@@ -212,11 +223,27 @@ function LearnersPage() {
         email:         learner.email,
         designation:   learner.designation,
         status:        newStatus,
+        learner_level: learner.learner_level,
+        age:           learner.age,
       });
       loadLearners();
     } catch (err) {
       alert('Error updating learner status.');
     }
+  };
+
+  const levelBadge = (level) => {
+    const colors = {
+      Entry:  { bg: '#f0f9ff', color: '#0369a1' },
+      Mid:    { bg: '#fef9c3', color: '#a16207' },
+      Senior: { bg: '#dcfce7', color: '#15803d' },
+    };
+    const c = colors[level] || { bg: '#f1f5f9', color: '#5a6878' };
+    return (
+      <span style={{ background: c.bg, color: c.color, padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: '600' }}>
+        {level || '—'}
+      </span>
+    );
   };
 
   return (
@@ -239,72 +266,64 @@ function LearnersPage() {
         </button>
       </div>
 
-      {/* ── STATS ── */}
-     <div style={styles.statsRow}>
-  <MiniStat label="Learners Population"    value={activeTab === 'emirati' ? emiratiLearners.length : learners.length} />
-  <MiniStat label="Average Learning Hours" value={avgHours} />
-  <MiniStat label="Total Learning Hours"   value={avgHours * (activeTab === 'emirati' ? emiratiLearners.length : learners.length)} />
-  <MiniStat label="Total Learners"         value={activeTab === 'emirati' ? emiratiLearners.length : learners.length} />
-  <MiniStat label="Total Emirati Learners" value={emiratiLearners.length} />
-  <MiniStat
-    label={activeTab === 'emirati' ? 'Emirati Trained This Year' : 'Learners Trained This Year'}
-    value={activeTab === 'emirati'
-      ? (stats?.emiratiTrainedThisYear || 0)
-      : (stats?.totalLearnersTrainedThisYear || 0)
-    }
-    sub={`Jan 1 – Today ${new Date().getFullYear()}`}
-  />
-</div>
+      {/* ── STATS — Total/Active/Inactive/Enrolled/Attended ── */}
+      <div style={styles.statsRow}>
+        <MiniStatColor label="Total Learners"    value={activeTab === 'emirati' ? emiratiLearners.length : learners.length} color="#051C2C" />
+        <MiniStatColor label="Active Learners"   value={activeTab === 'emirati' ? emiratiLearners.filter(l => l.status === 'Active').length : activeLearnersCount} color="#7a9e7a" />
+        <MiniStatColor label="Inactive Learners" value={activeTab === 'emirati' ? emiratiLearners.filter(l => l.status !== 'Active').length : inactiveLearnersCount} color="#AF5F46" />
+        <MiniStatColor label="Enrolled"          value={enrollStats.enrolled} color="#0369a1" sub="course assignments" />
+        <MiniStatColor label="Attended"          value={enrollStats.attended} color="#15803d" sub="completed training" />
+      </div>
 
-      {/* ── GENDER CARDS ── */}
+      {/* ── GENDER CARDS (colored) ── */}
       <div style={styles.genderRow}>
         {activeTab === 'all' ? (
           <>
-            <div style={styles.genderCard}>
-              <div style={styles.genderTitle}>Male and Female Learners</div>
+            <div style={{ ...styles.genderCard, background: '#051C2C' }}>
+              <div style={{ ...styles.genderTitle, color: '#ffffff' }}>Male and Female Learners</div>
               <div style={styles.peopleRow}>
                 {Array.from({ length: Math.min(allMale.length, 8) }).map((_, i) => (
-                  <PersonIcon key={'m' + i} color="#051c2c" />
+                  <PersonIcon key={'m' + i} color="#ffffff" />
                 ))}
                 {Array.from({ length: Math.min(allFemale.length, 8) }).map((_, i) => (
-                  <PersonIcon key={'f' + i} color="#b6bdc2" />
+                  <PersonIcon key={'f' + i} color="#AF5F46" />
                 ))}
               </div>
-              <div style={styles.genderLegend}>
-                <span><span style={{ color: '#051c2c' }}>●</span> Male ({allMale.length})</span>
-                <span><span style={{ color: '#b6bdc2' }}>●</span> Female ({allFemale.length})</span>
+              <div style={styles.genderLegendLight}>
+                <span><span style={{ color: '#ffffff' }}>●</span> Male ({allMale.length})</span>
+                <span><span style={{ color: '#AF5F46' }}>●</span> Female ({allFemale.length})</span>
               </div>
             </div>
-            <div style={styles.genderCard}>
-              <div style={styles.genderTitle}>Emirati Male and Female Learners</div>
+            <div style={{ ...styles.genderCard, background: '#6a9ea8' }}>
+              <div style={{ ...styles.genderTitle, color: '#ffffff' }}>Emirati Male and Female Learners</div>
               <div style={styles.peopleRow}>
                 {Array.from({ length: Math.min(emiratiMale.length, 8) }).map((_, i) => (
-                  <PersonIcon key={'em' + i} color="#051c2c" />
+                  <PersonIcon key={'em' + i} color="#051C2C" />
                 ))}
                 {Array.from({ length: Math.min(emiratiFemale.length, 8) }).map((_, i) => (
-                  <PersonIcon key={'ef' + i} color="#b6bdc2" />
+                  <PersonIcon key={'ef' + i} color="#ffffff" />
                 ))}
               </div>
-              <div style={styles.genderLegend}>
-                <span><span style={{ color: '#051c2c' }}>●</span> Male ({emiratiMale.length})</span>
-                <span><span style={{ color: '#b6bdc2' }}>●</span> Female ({emiratiFemale.length})</span>
+              <div style={styles.genderLegendLight}>
+                <span><span style={{ color: '#051C2C' }}>●</span> Male ({emiratiMale.length})</span>
+                <span><span style={{ color: '#ffffff' }}>●</span> Female ({emiratiFemale.length})</span>
               </div>
             </div>
           </>
         ) : (
-          <div style={{ ...styles.genderCard, gridColumn: 'span 2' }}>
-            <div style={styles.genderTitle}>Emirati Male and Female Learners</div>
+          <div style={{ ...styles.genderCard, background: '#6a9ea8', gridColumn: 'span 2' }}>
+            <div style={{ ...styles.genderTitle, color: '#ffffff' }}>Emirati Male and Female Learners</div>
             <div style={styles.peopleRow}>
               {Array.from({ length: Math.min(emiratiMale.length, 12) }).map((_, i) => (
-                <PersonIcon key={'em' + i} color="#051c2c" />
+                <PersonIcon key={'em' + i} color="#051C2C" />
               ))}
               {Array.from({ length: Math.min(emiratiFemale.length, 12) }).map((_, i) => (
-                <PersonIcon key={'ef' + i} color="#b6bdc2" />
+                <PersonIcon key={'ef' + i} color="#ffffff" />
               ))}
             </div>
-            <div style={styles.genderLegend}>
-              <span><span style={{ color: '#051c2c' }}>●</span> Emirati Male ({emiratiMale.length})</span>
-              <span><span style={{ color: '#b6bdc2' }}>●</span> Emirati Female ({emiratiFemale.length})</span>
+            <div style={styles.genderLegendLight}>
+              <span><span style={{ color: '#051C2C' }}>●</span> Emirati Male ({emiratiMale.length})</span>
+              <span><span style={{ color: '#ffffff' }}>●</span> Emirati Female ({emiratiFemale.length})</span>
             </div>
           </div>
         )}
@@ -351,10 +370,10 @@ function LearnersPage() {
       ) : (
         <div style={styles.tableWrap}>
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ ...styles.table, minWidth: '800px' }}>
+            <table style={{ ...styles.table, minWidth: '950px' }}>
               <thead>
                 <tr style={styles.tableHeadRow}>
-                  {['No.', 'Emp ID', 'Name', 'Designation', 'Department', 'Status', 'Action'].map(h => (
+                  {['No.', 'Emp ID', 'Name', 'Age', 'Level', 'Designation', 'Department', 'Status', 'Action'].map(h => (
                     <th key={h} style={styles.th}>{h}</th>
                   ))}
                 </tr>
@@ -383,6 +402,12 @@ function LearnersPage() {
                           <span style={styles.activeTick}>✓</span>
                         )}
                       </div>
+                    </td>
+                    <td style={{ ...styles.td, textAlign: 'center' }}>
+                      {learner.age || '—'}
+                    </td>
+                    <td style={styles.td}>
+                      {levelBadge(learner.learner_level)}
                     </td>
                     <td style={{ ...styles.td, whiteSpace: 'nowrap' }}>
                       {learner.designation || '—'}
@@ -468,13 +493,15 @@ function LearnersPage() {
                 <div style={styles.photoPlaceholder}>🖼</div>
               </div>
               <div style={styles.formGrid}>
-                <FormField label="Emp ID *"   value={form.empId}       onChange={v => setForm({...form, empId: v})}       placeholder="e.g. RAK-006" />
-                <FormField label="Name *"      value={form.name}        onChange={v => setForm({...form, name: v})}        placeholder="Full name" />
-                <FormField label="Nationality" value={form.nationality} onChange={v => setForm({...form, nationality: v})} placeholder="e.g. Emirati" />
-                <FormField label="Designation" value={form.designation} onChange={v => setForm({...form, designation: v})} placeholder="Job title" />
-                <FormField label="Department"  value={form.department}  onChange={v => setForm({...form, department: v})}  type="select" options={departments.map(d => ({ label: d.name, value: d.id }))} />
-                <FormField label="Email"       value={form.email}       onChange={v => setForm({...form, email: v})}       placeholder="name@rakprop.ae" type="email" />
-                <FormField label="Gender"      value={form.gender}      onChange={v => setForm({...form, gender: v})}      type="select" options={['Male', 'Female']} />
+                <FormField label="Emp ID *"     value={form.empId}       onChange={v => setForm({...form, empId: v})}       placeholder="e.g. RAK-006" />
+                <FormField label="Name *"        value={form.name}        onChange={v => setForm({...form, name: v})}        placeholder="Full name" />
+                <FormField label="Nationality"   value={form.nationality} onChange={v => setForm({...form, nationality: v})} placeholder="e.g. Emirati" />
+                <FormField label="Designation"   value={form.designation} onChange={v => setForm({...form, designation: v})} placeholder="Job title" />
+                <FormField label="Department"    value={form.department}  onChange={v => setForm({...form, department: v})}  type="select" options={departments.map(d => ({ label: d.name, value: d.id }))} />
+                <FormField label="Email"         value={form.email}       onChange={v => setForm({...form, email: v})}       placeholder="name@rakprop.ae" type="email" />
+                <FormField label="Gender"        value={form.gender}      onChange={v => setForm({...form, gender: v})}      type="select" options={['Male', 'Female']} />
+                <FormField label="Learner Level" value={form.learnerLevel} onChange={v => setForm({...form, learnerLevel: v})} type="select" options={['Entry', 'Mid', 'Senior']} />
+                <FormField label="Age"           value={form.age}         onChange={v => setForm({...form, age: v})}         placeholder="e.g. 28" type="number" />
               </div>
               <div style={styles.statusRow}>
                 <span style={styles.fieldLabel}>Employment Status</span>
@@ -510,13 +537,15 @@ function LearnersPage() {
             </div>
             <div style={styles.modalBody}>
               <div style={styles.formGrid}>
-                <FormField label="Emp ID"      value={editForm.empId}       onChange={v => setEditForm({...editForm, empId: v})}       placeholder="e.g. RAK-006" />
-                <FormField label="Name *"       value={editForm.name}        onChange={v => setEditForm({...editForm, name: v})}        placeholder="Full name" />
-                <FormField label="Nationality"  value={editForm.nationality} onChange={v => setEditForm({...editForm, nationality: v})} placeholder="e.g. Emirati" />
-                <FormField label="Designation"  value={editForm.designation} onChange={v => setEditForm({...editForm, designation: v})} placeholder="Job title" />
-                <FormField label="Department"   value={editForm.department}  onChange={v => setEditForm({...editForm, department: v})}  type="select" options={departments.map(d => ({ label: d.name, value: d.id }))} />
-                <FormField label="Email"        value={editForm.email}       onChange={v => setEditForm({...editForm, email: v})}       placeholder="name@rakprop.ae" type="email" />
-                <FormField label="Gender"       value={editForm.gender}      onChange={v => setEditForm({...editForm, gender: v})}      type="select" options={['Male', 'Female']} />
+                <FormField label="Emp ID"       value={editForm.empId}       onChange={v => setEditForm({...editForm, empId: v})}       placeholder="e.g. RAK-006" />
+                <FormField label="Name *"        value={editForm.name}        onChange={v => setEditForm({...editForm, name: v})}        placeholder="Full name" />
+                <FormField label="Nationality"   value={editForm.nationality} onChange={v => setEditForm({...editForm, nationality: v})} placeholder="e.g. Emirati" />
+                <FormField label="Designation"   value={editForm.designation} onChange={v => setEditForm({...editForm, designation: v})} placeholder="Job title" />
+                <FormField label="Department"    value={editForm.department}  onChange={v => setEditForm({...editForm, department: v})}  type="select" options={departments.map(d => ({ label: d.name, value: d.id }))} />
+                <FormField label="Email"         value={editForm.email}       onChange={v => setEditForm({...editForm, email: v})}       placeholder="name@rakprop.ae" type="email" />
+                <FormField label="Gender"        value={editForm.gender}      onChange={v => setEditForm({...editForm, gender: v})}      type="select" options={['Male', 'Female']} />
+                <FormField label="Learner Level" value={editForm.learnerLevel} onChange={v => setEditForm({...editForm, learnerLevel: v})} type="select" options={['Entry', 'Mid', 'Senior']} />
+                <FormField label="Age"           value={editForm.age}         onChange={v => setEditForm({...editForm, age: v})}         placeholder="e.g. 28" type="number" />
               </div>
               <div style={styles.statusRow}>
                 <span style={styles.fieldLabel}>Employment Status</span>
@@ -581,6 +610,7 @@ function LearnersPage() {
                         {selected.gender}
                       </span>
                     )}
+                    {selected.learner_level && levelBadge(selected.learner_level)}
                   </div>
                 </div>
               </div>
@@ -588,9 +618,8 @@ function LearnersPage() {
               <div style={styles.profileGrid}>
                 {[
                   ['Emp ID', selected.emp_id  || '—'],
+                  ['Age',    selected.age     || '—'],
                   ['Email',  selected.email   || '—'],
-                  ['Joined', selected.created_at
-                    ? new Date(selected.created_at).toLocaleDateString('en-GB') : '—'],
                 ].map(([k, v]) => (
                   <div key={k} style={styles.profileInfoItem}>
                     <div style={styles.profileInfoLabel}>{k}</div>
@@ -797,14 +826,12 @@ function PersonIcon({ color }) {
   );
 }
 
-function MiniStat({ label, value, sub }) {
+function MiniStatColor({ label, value, color, sub }) {
   return (
-    <div style={styles.miniStat}>
+    <div style={{ ...styles.miniStat, background: color }}>
       <div style={styles.miniStatLabel}>{label}</div>
       <div style={styles.miniStatValue}>{value}</div>
-      {sub && (
-        <div style={{ fontSize: '10px', color: '#9baabb', marginTop: '3px' }}>{sub}</div>
-      )}
+      {sub && <div style={styles.miniStatSub}>{sub}</div>}
     </div>
   );
 }
@@ -836,14 +863,16 @@ const styles = {
   tab:              { padding: '9px 20px', borderRadius: '8px', border: 'none', fontSize: '13px', fontWeight: '600', cursor: 'pointer', background: '#2a3f52', color: '#b6bdc2', fontFamily: 'Inter, sans-serif', display: 'flex', alignItems: 'center', gap: '6px' },
   tabActive:        { background: '#1a2f42', color: '#ffffff' },
   tabTick:          { background: '#16a34a', color: '#fff', borderRadius: '50%', width: '16px', height: '16px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px' },
-statsRow: { display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '12px', marginBottom: '16px' },  miniStat:         { background: '#ffffff', borderRadius: '10px', border: '1px solid #e8ecf0', padding: '16px' },
-  miniStatLabel:    { fontSize: '11px', color: '#5a6878', fontWeight: '500', marginBottom: '6px' },
-  miniStatValue:    { fontSize: '28px', fontWeight: '800', color: '#051c2c', lineHeight: 1 },
+  statsRow:         { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '16px' },
+  miniStat:         { borderRadius: '10px', padding: '16px' },
+  miniStatLabel:    { fontSize: '11px', color: 'rgba(255,255,255,0.7)', fontWeight: '500', marginBottom: '6px' },
+  miniStatValue:    { fontSize: '28px', fontWeight: '800', color: '#ffffff', lineHeight: 1 },
+  miniStatSub:      { fontSize: '10px', color: 'rgba(255,255,255,0.5)', marginTop: '4px' },
   genderRow:        { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' },
-  genderCard:       { background: '#ffffff', borderRadius: '10px', border: '1px solid #e8ecf0', padding: '16px' },
-  genderTitle:      { fontSize: '12px', fontWeight: '600', color: '#051c2c', marginBottom: '10px' },
+  genderCard:       { borderRadius: '10px', padding: '16px' },
+  genderTitle:      { fontSize: '12px', fontWeight: '600', marginBottom: '10px' },
   peopleRow:        { display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' },
-  genderLegend:     { display: 'flex', gap: '16px', fontSize: '11px', color: '#5a6878' },
+  genderLegendLight:{ display: 'flex', gap: '16px', fontSize: '11px', color: 'rgba(255,255,255,0.85)' },
   tableHeader:      { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' },
   tableTitle:       { fontSize: '18px', fontWeight: '700', color: '#051c2c' },
   tableControls:    { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' },
