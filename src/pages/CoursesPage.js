@@ -13,7 +13,7 @@ function CoursesPage() {
   const [selected,         setSelected]         = useState(null);
   const [editCourse,       setEditCourse]       = useState(null);
   const [searchTitle,      setSearchTitle]      = useState('');
-  const [filterDept,       setFilterDept]       = useState('');
+  const [filterDeptId,     setFilterDeptId]     = useState('');
   const [filterStartDate,  setFilterStartDate]  = useState('');
   const [filterEndDate,    setFilterEndDate]    = useState('');
   const [loading,          setLoading]          = useState(true);
@@ -28,6 +28,12 @@ function CoursesPage() {
   const [feedbackLoading,  setFeedbackLoading]  = useState(false);
   const [manualOverride,   setManualOverride]   = useState(false);
   const [manualValue,      setManualValue]      = useState(0);
+  const [devCollapsed,     setDevCollapsed]     = useState(true);
+  const [mandCollapsed,    setMandCollapsed]    = useState(true);
+
+  // Department-filtered course IDs (learners in that dept enrolled in these courses)
+  const [deptCourseIds,    setDeptCourseIds]    = useState(null);
+  const [deptFilterLoading,setDeptFilterLoading]= useState(false);
 
   const emptyForm = {
     title: '', description: '', duration: '', institute: '',
@@ -44,6 +50,38 @@ function CoursesPage() {
     api.getTrainers().then(data => { if (Array.isArray(data)) setTrainers(data); });
     api.getDepartments().then(data => { if (Array.isArray(data)) setDepartments(data); });
   }, []);
+
+  // When department filter changes, find which courses have learners from that dept
+  useEffect(() => {
+    if (!filterDeptId) {
+      setDeptCourseIds(null);
+      return;
+    }
+    setDeptFilterLoading(true);
+    (async () => {
+      try {
+        const allLearners = await api.getLearners();
+        const deptLearnerIds = new Set(
+          (Array.isArray(allLearners) ? allLearners : [])
+            .filter(l => String(l.department_id) === String(filterDeptId))
+            .map(l => l.id)
+        );
+
+        const results = await Promise.all(
+          courses.map(c => api.getEnrollmentsByCourse(c.id).then(data => ({
+            courseId: c.id,
+            hasDeptLearner: Array.isArray(data) && data.some(l => deptLearnerIds.has(l.id)),
+          })).catch(() => ({ courseId: c.id, hasDeptLearner: false })))
+        );
+
+        const matchingIds = new Set(results.filter(r => r.hasDeptLearner).map(r => r.courseId));
+        setDeptCourseIds(matchingIds);
+      } catch (err) {
+        setDeptCourseIds(new Set());
+      }
+      setDeptFilterLoading(false);
+    })();
+  }, [filterDeptId, courses]);
 
   const loadCourses = () => {
     api.getCourses()
@@ -87,7 +125,8 @@ function CoursesPage() {
     if (filterEndDate && courseDate) {
       matchDateRange = matchDateRange && new Date(courseDate) <= new Date(filterEndDate);
     }
-    return matchSearch && matchDateRange;
+    const matchDept = !filterDeptId || deptCourseIds === null || deptCourseIds.has(c.id);
+    return matchSearch && matchDateRange && matchDept;
   });
 
   const totalFiltered = filtered.length;
@@ -315,14 +354,17 @@ function CoursesPage() {
     );
   };
 
-  const TrainingTypeBadge = ({ type }) => (
-    <span style={{
-      background: type === 'Mandatory' ? '#fee2e2' : '#f0f9ff',
-      color:      type === 'Mandatory' ? '#991b1b' : '#0369a1',
-      padding: '3px 10px', borderRadius: '20px',
-      fontSize: '11px', fontWeight: '600',
-    }}>
-      {type === 'Mandatory' ? '⚠️ Mandatory' : '📘 Developmental'}
+  // Icon shown next to course name: black triangle = Developmental, blue square = Mandatory
+  const TrainingTypeIcon = ({ type }) => (
+    <span
+      title={type === 'Mandatory' ? 'Mandatory Course' : 'Developmental Course'}
+      style={{
+        display: 'inline-block', marginRight: '6px',
+        color: type === 'Mandatory' ? '#1d4ed8' : '#111827',
+        fontSize: '11px', verticalAlign: 'middle',
+      }}
+    >
+      {type === 'Mandatory' ? '■' : '▲'}
     </span>
   );
 
@@ -372,7 +414,10 @@ function CoursesPage() {
           {course.type || 'External'}
         </span>
       </div>
-      <div style={styles.upcomingCardTitle}>{course.title}</div>
+      <div style={styles.upcomingCardTitle}>
+        <TrainingTypeIcon type={course.training_type || 'Developmental'} />
+        {course.title}
+      </div>
       <div style={styles.upcomingCardMeta}>
         <div style={styles.upcomingMetaItem}>
           <span style={styles.upcomingMetaIcon}>👤</span>
@@ -437,7 +482,7 @@ function CoursesPage() {
           <div style={styles.statNum}>{upcomingDevelopmental.length + upcomingMandatory.length}</div>
           <div style={styles.statLbl}>Upcoming Courses</div>
           <div style={styles.statSub}>
-            {upcomingDevelopmental.length} Dev · {upcomingMandatory.length} Mandatory
+            ▲ {upcomingDevelopmental.length} Dev · ■ {upcomingMandatory.length} Mandatory
           </div>
         </div>
         <div style={styles.statCard}>
@@ -448,38 +493,50 @@ function CoursesPage() {
         </div>
       </div>
 
-      {/* ── UPCOMING COURSES — SIDE BY SIDE ── */}
+      {/* ── UPCOMING COURSES — COLLAPSIBLE ── */}
       <div style={styles.upcomingSplitGrid}>
 
         <div style={styles.upcomingSection}>
-          <div style={styles.upcomingHeader}>
-            <span style={styles.upcomingTitle}>📘 Upcoming Developmental Courses</span>
-            <span style={{ fontSize: '12px', color: '#9baabb' }}>
-              {upcomingDevelopmental.length}
+          <button
+            style={styles.collapseHeader}
+            onClick={() => setDevCollapsed(!devCollapsed)}
+          >
+            <span style={styles.upcomingTitle}>▲ Upcoming Developmental Courses</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '12px', color: '#9baabb' }}>{upcomingDevelopmental.length}</span>
+              <span style={{ fontSize: '12px', color: '#5a6878' }}>{devCollapsed ? '▼' : '▲'}</span>
             </span>
-          </div>
-          {upcomingDevelopmental.length > 0 ? (
-            <div style={styles.upcomingGridSingle}>
-              {upcomingDevelopmental.map(renderUpcomingCard)}
-            </div>
-          ) : (
-            <div style={styles.upcomingEmpty}>No upcoming developmental courses.</div>
+          </button>
+          {!devCollapsed && (
+            upcomingDevelopmental.length > 0 ? (
+              <div style={styles.upcomingGridSingle}>
+                {upcomingDevelopmental.map(renderUpcomingCard)}
+              </div>
+            ) : (
+              <div style={styles.upcomingEmpty}>No upcoming developmental courses.</div>
+            )
           )}
         </div>
 
-        <div style={{ ...styles.upcomingSection, borderColor: '#fecaca' }}>
-          <div style={styles.upcomingHeader}>
-            <span style={styles.upcomingTitle}>⚠️ Upcoming Mandatory Courses</span>
-            <span style={{ fontSize: '12px', color: '#9baabb' }}>
-              {upcomingMandatory.length}
+        <div style={{ ...styles.upcomingSection, borderColor: '#bfdbfe' }}>
+          <button
+            style={styles.collapseHeader}
+            onClick={() => setMandCollapsed(!mandCollapsed)}
+          >
+            <span style={styles.upcomingTitle}>■ Upcoming Mandatory Courses</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '12px', color: '#9baabb' }}>{upcomingMandatory.length}</span>
+              <span style={{ fontSize: '12px', color: '#5a6878' }}>{mandCollapsed ? '▼' : '▲'}</span>
             </span>
-          </div>
-          {upcomingMandatory.length > 0 ? (
-            <div style={styles.upcomingGridSingle}>
-              {upcomingMandatory.map(renderUpcomingCard)}
-            </div>
-          ) : (
-            <div style={styles.upcomingEmpty}>No upcoming mandatory courses.</div>
+          </button>
+          {!mandCollapsed && (
+            upcomingMandatory.length > 0 ? (
+              <div style={styles.upcomingGridSingle}>
+                {upcomingMandatory.map(renderUpcomingCard)}
+              </div>
+            ) : (
+              <div style={styles.upcomingEmpty}>No upcoming mandatory courses.</div>
+            )
           )}
         </div>
 
@@ -499,15 +556,18 @@ function CoursesPage() {
           </div>
 
           <select
-            value={filterDept}
-            onChange={e => { setFilterDept(e.target.value); setCurrentPage(1); }}
+            value={filterDeptId}
+            onChange={e => { setFilterDeptId(e.target.value); setCurrentPage(1); }}
             style={styles.filterSelect}
           >
             <option value="">All Departments</option>
             {departments.map(d => (
-              <option key={d.id} value={d.name}>{d.name}</option>
+              <option key={d.id} value={d.id}>{d.name}</option>
             ))}
           </select>
+          {deptFilterLoading && (
+            <span style={{ fontSize: '11px', color: '#9baabb' }}>Filtering...</span>
+          )}
 
           <div style={styles.dateFilterPair}>
             <input
@@ -527,10 +587,10 @@ function CoursesPage() {
             />
           </div>
 
-          {(filterDept || filterStartDate || filterEndDate) && (
+          {(filterDeptId || filterStartDate || filterEndDate) && (
             <button
               onClick={() => {
-                setFilterDept(''); setFilterStartDate(''); setFilterEndDate('');
+                setFilterDeptId(''); setFilterStartDate(''); setFilterEndDate('');
                 setCurrentPage(1);
               }}
               style={styles.clearFilterBtn}
@@ -553,6 +613,9 @@ function CoursesPage() {
         <div style={styles.tableWrap}>
           <div style={styles.tableTitle}>
             Courses
+            <span style={{ fontSize: '11px', color: '#5a6878', fontWeight: '400', marginLeft: '10px' }}>
+              ▲ Developmental &nbsp; ■ Mandatory
+            </span>
             {(filterStartDate || filterEndDate) && (
               <span style={{ fontSize: '13px', color: '#0369a1', fontWeight: '500', marginLeft: '8px' }}>
                 — {filterStartDate || '...'} to {filterEndDate || '...'}
@@ -565,10 +628,10 @@ function CoursesPage() {
             )}
           </div>
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ ...styles.table, minWidth: '1180px' }}>
+            <table style={{ ...styles.table, minWidth: '1080px' }}>
               <thead>
                 <tr style={styles.theadRow}>
-                  {['No.', 'Name', 'Training Type', 'Institute', 'Trainer', 'Start Date', 'End Date',
+                  {['No.', 'Name', 'Institute', 'Trainer', 'Start Date', 'End Date',
                     'Type', 'Status', 'Enrolled', 'Attended',
                     'Participation Rate', 'Total Learning Hours',
                     'Satisfaction Rate', ''].map(h => (
@@ -591,16 +654,14 @@ function CoursesPage() {
                       <td style={styles.td}>
                         {(currentPage - 1) * ITEMS_PER_PAGE + i + 1}
                       </td>
-                      <td style={{ ...styles.td, minWidth: '180px' }}>
+                      <td style={{ ...styles.td, minWidth: '200px' }}>
                         <button
                           style={styles.courseNameBtn}
                           onClick={() => openDetail(course)}
                         >
+                          <TrainingTypeIcon type={course.training_type || 'Developmental'} />
                           {course.title}
                         </button>
-                      </td>
-                      <td style={styles.td}>
-                        <TrainingTypeBadge type={course.training_type || 'Developmental'} />
                       </td>
                       <td style={{ ...styles.td, color: '#5a6878', fontSize: '12px', minWidth: '120px' }}>
                         {course.institute || '—'}
@@ -750,10 +811,10 @@ function CoursesPage() {
             onClick={e => e.stopPropagation()}>
             <div style={styles.modalHeader}>
               <div>
-                <span style={styles.modalTitle}>{selected.title}</span>
-                <div style={{ marginTop: '4px' }}>
-                  <TrainingTypeBadge type={selected.training_type || 'Developmental'} />
-                </div>
+                <span style={styles.modalTitle}>
+                  <TrainingTypeIcon type={selected.training_type || 'Developmental'} />
+                  {selected.title}
+                </span>
               </div>
               <button style={styles.modalClose} onClick={() => {
                 setSelected(null); setProfileLearner(null); setDeptFilter('');
@@ -1186,7 +1247,6 @@ function CoursesPage() {
             </div>
             <div style={styles.modalBody}>
 
-              {/* Manual vs Auto toggle */}
               <div style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 padding: '14px 16px', background: '#f8f9fa', borderRadius: '10px',
@@ -1262,7 +1322,6 @@ function CoursesPage() {
                 </div>
               )}
 
-              {/* Current rate display */}
               <div style={{ textAlign: 'center', marginBottom: '20px' }}>
                 <Stars value={feedbackPopup.stars} size={20} />
                 <div style={{ fontSize: '28px', fontWeight: '800', color: '#c8973a', marginTop: '6px' }}>
@@ -1270,7 +1329,6 @@ function CoursesPage() {
                 </div>
               </div>
 
-              {/* Feedback responses list */}
               <div style={styles.sectionLabel}>
                 Feedback Responses ({feedbackList.length})
               </div>
@@ -1461,11 +1519,11 @@ const styles = {
   statLbl:              { fontSize: '12px', fontWeight: '600', color: '#b6bdc2' },
   statSub:              { fontSize: '11px', color: 'rgba(182,189,194,0.6)' },
   upcomingSplitGrid:    { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' },
-  upcomingSection:      { background: '#ffffff', borderRadius: '12px', border: '1px solid #e8ecf0', padding: '18px' },
-  upcomingHeader:       { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' },
+  upcomingSection:      { background: '#ffffff', borderRadius: '12px', border: '1px solid #e8ecf0', overflow: 'hidden' },
+  collapseHeader:       { width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 18px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
   upcomingTitle:        { fontSize: '14px', fontWeight: '700', color: '#051c2c' },
-  upcomingGridSingle:   { display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '420px', overflowY: 'auto' },
-  upcomingEmpty:        { padding: '24px', textAlign: 'center', color: '#9baabb', fontSize: '13px' },
+  upcomingGridSingle:   { display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '420px', overflowY: 'auto', padding: '0 18px 18px' },
+  upcomingEmpty:        { padding: '0 18px 18px', textAlign: 'center', color: '#9baabb', fontSize: '13px' },
   upcomingCard:         { background: '#f8f9fa', borderRadius: '10px', border: '1px solid #e8ecf0', padding: '14px', display: 'flex', flexDirection: 'column', gap: '8px' },
   upcomingCardHeader:   { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   upcomingCardTitle:    { fontSize: '13px', fontWeight: '700', color: '#051c2c', lineHeight: 1.4 },

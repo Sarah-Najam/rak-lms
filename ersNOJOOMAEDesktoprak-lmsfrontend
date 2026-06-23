@@ -1,0 +1,10 @@
+[33m0b9abe0[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m Rebuild training calendar as standalone manual entry system
+[33m83527e1[m Learners page: colored cards, learner level, age, enrolled/attended stats
+[33md93e705[m Reports page full redesign: date filter, drill-down cards, satisfaction score, training hours
+[33mbf7c41d[m Courses page: training type, date filter, split upcoming sections, feedback system
+[33m8ee8bb6[m Add year selector to dashboard with archived year view
+[33m2f790cb[m Dashboard: rename to Developmental, add Mandatory Trainings section
+[33m9350c33[m Fix api.js duplicates and App.js mixed operators for Vercel
+[33m1b7644d[m Add reports date filter, departments course badges, courses dept filter
+[33m18af138[m Reports page date filter, filtered stats, satisfaction rate in export
+[33m3f7041e[m Fix dashboard 2x2 grid layout with brand colors

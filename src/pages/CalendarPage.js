@@ -6,7 +6,7 @@ const ITEMS_PER_PAGE = 20;
 
 const STATUS_OPTIONS   = ['Planned', 'Scheduled', 'Ongoing', 'Completed', 'Postponed', 'On hold', 'Cancelled'];
 const DELIVERY_OPTIONS = ['Classroom', 'Online', 'Hybrid', 'E-Learning', 'Workshop', 'Conference', 'Training'];
-const TYPE_OPTIONS      = ['Mandatory', 'Developmental'];
+const TYPE_OPTIONS     = ['Mandatory', 'Developmental'];
 
 function CalendarPage() {
 
@@ -67,11 +67,11 @@ function CalendarPage() {
     currentPage * ITEMS_PER_PAGE
   );
 
-  const totalEntries     = entries.length;
-  const mandatoryCount   = entries.filter(e => e.type === 'Mandatory').length;
+  const totalEntries       = entries.length;
+  const mandatoryCount     = entries.filter(e => e.type === 'Mandatory').length;
   const developmentalCount = entries.filter(e => e.type === 'Developmental').length;
-  const totalCost        = entries.reduce((s, e) => s + (+e.cost || 0), 0);
-  const totalHours        = entries.reduce((s, e) => s + (+e.training_hours || 0), 0);
+  const totalCost          = entries.reduce((s, e) => s + (+e.cost || 0), 0);
+  const totalHours         = entries.reduce((s, e) => s + (+e.training_hours || 0), 0);
 
   const validateForm = (f) => {
     if (!f.trainingName) return 'Training Name is required.';
@@ -147,17 +147,17 @@ function CalendarPage() {
 
   const openEdit = (entry) => {
     setEditForm({
-      trainingName:   entry.training_name   || '',
-      departmentId:   entry.department_id   || '',
-      status:         entry.status          || 'Planned',
+      trainingName:   entry.training_name    || '',
+      departmentId:   entry.department_id    || '',
+      status:         entry.status           || 'Planned',
       startDate:      entry.start_date ? entry.start_date.split('T')[0] : '',
       endDate:        entry.end_date   ? entry.end_date.split('T')[0]   : '',
-      duration:       entry.duration        || '',
-      modeOfDelivery: entry.mode_of_delivery|| '',
-      type:           entry.type            || 'Developmental',
-      trainingHours:  entry.training_hours  || '',
-      cost:           entry.cost            || '',
-      remarks:        entry.remarks         || '',
+      duration:       entry.duration         || '',
+      modeOfDelivery: entry.mode_of_delivery || '',
+      type:           entry.type             || 'Developmental',
+      trainingHours:  entry.training_hours   || '',
+      cost:           entry.cost             || '',
+      remarks:        entry.remarks          || '',
     });
     setFormError('');
     setEditEntry(entry);
