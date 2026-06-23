@@ -206,6 +206,35 @@ const api = {
       headers: headers(),
     }).then(r => r.json()),
 
+  // ── FEEDBACK ──────────────────────────────────────────────
+  sendFeedbackLinks: (courseId) =>
+    fetch(`${BASE_URL}/enrollments/send-feedback/${courseId}`, {
+      method: 'POST',
+      headers: headers(),
+    }).then(r => r.json()),
+
+  verifyFeedbackToken: (token) =>
+    fetch(`${BASE_URL}/enrollments/feedback/${token}`).then(r => r.json()),
+
+  submitFeedback: (data) =>
+    fetch(`${BASE_URL}/enrollments/feedback/submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).then(r => r.json()),
+
+  getFeedbackByCourse: (courseId) =>
+    fetch(`${BASE_URL}/enrollments/feedback/course/${courseId}`, {
+      headers: headers(),
+    }).then(r => r.json()),
+
+  toggleManualSatisfaction: (courseId, is_manual, manual_value) =>
+    fetch(`${BASE_URL}/enrollments/feedback/toggle-manual/${courseId}`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ is_manual, manual_value }),
+    }).then(r => r.json()),
+
   // ── UPLOAD ────────────────────────────────────────────────
   uploadFile: async (file) => {
     const formData = new FormData();

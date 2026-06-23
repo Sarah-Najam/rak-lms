@@ -14,6 +14,8 @@ function CoursesPage() {
   const [editCourse,       setEditCourse]       = useState(null);
   const [searchTitle,      setSearchTitle]      = useState('');
   const [filterDept,       setFilterDept]       = useState('');
+  const [filterStartDate,  setFilterStartDate]  = useState('');
+  const [filterEndDate,    setFilterEndDate]    = useState('');
   const [loading,          setLoading]          = useState(true);
   const [currentPage,      setCurrentPage]      = useState(1);
   const [enrolledLearners, setEnrolledLearners] = useState([]);
@@ -21,13 +23,18 @@ function CoursesPage() {
   const [profileLearner,   setProfileLearner]   = useState(null);
   const [trainerPopup,     setTrainerPopup]     = useState(null);
   const [deptFilter,       setDeptFilter]       = useState('');
+  const [feedbackPopup,    setFeedbackPopup]    = useState(null);
+  const [feedbackList,     setFeedbackList]     = useState([]);
+  const [feedbackLoading,  setFeedbackLoading]  = useState(false);
+  const [manualOverride,   setManualOverride]   = useState(false);
+  const [manualValue,      setManualValue]      = useState(0);
 
   const emptyForm = {
     title: '', description: '', duration: '', institute: '',
     hours: '', cost: '', budgetRealized: '', startDate: '',
     endDate: '', type: 'External', status: 'Pending',
     tableOfContents: '', maxLearners: '', trainer: '',
-    po: '', pr: '', venue: '', stars: 0,
+    po: '', pr: '', venue: '', stars: 0, trainingType: 'Developmental',
   };
   const [form,     setForm]     = useState(emptyForm);
   const [editForm, setEditForm] = useState(emptyForm);
@@ -47,8 +54,14 @@ function CoursesPage() {
       .catch(() => setLoading(false));
   };
 
-  const upcomingCourses = courses.filter(c =>
-    c.status === 'Pending' || c.status === 'Ongoing'
+  const upcomingDevelopmental = courses.filter(c =>
+    (c.status === 'Pending' || c.status === 'Ongoing') &&
+    (c.training_type || 'Developmental') === 'Developmental'
+  );
+
+  const upcomingMandatory = courses.filter(c =>
+    (c.status === 'Pending' || c.status === 'Ongoing') &&
+    c.training_type === 'Mandatory'
   );
 
   const totalCourses     = courses.length;
@@ -64,11 +77,17 @@ function CoursesPage() {
       )
     : 0;
 
-  // Filter courses — when dept filter is active show courses
-  // that have at least one enrolled learner from that dept
   const filtered = courses.filter(c => {
     const matchSearch = c.title.toLowerCase().includes(searchTitle.toLowerCase());
-    return matchSearch;
+    const courseDate   = c.start_date || c.end_date;
+    let matchDateRange = true;
+    if (filterStartDate && courseDate) {
+      matchDateRange = matchDateRange && new Date(courseDate) >= new Date(filterStartDate);
+    }
+    if (filterEndDate && courseDate) {
+      matchDateRange = matchDateRange && new Date(courseDate) <= new Date(filterEndDate);
+    }
+    return matchSearch && matchDateRange;
   });
 
   const totalFiltered = filtered.length;
@@ -105,6 +124,50 @@ function CoursesPage() {
     else setTrainerPopup({ name: trainerName, notFound: true });
   };
 
+  const openFeedbackPopup = async (course) => {
+    setFeedbackPopup(course);
+    setFeedbackLoading(true);
+    setManualOverride(course.stars_is_manual !== false);
+    setManualValue(course.stars || 0);
+    try {
+      const data = await api.getFeedbackByCourse(course.id);
+      if (Array.isArray(data)) setFeedbackList(data);
+    } catch (err) {
+      setFeedbackList([]);
+    }
+    setFeedbackLoading(false);
+  };
+
+  const handleSendFeedback = async (course) => {
+    const result = await api.sendFeedbackLinks(course.id);
+    if (result.links && result.links.length > 0) {
+      const linkList = result.links.map(l => `${l.name}: ${l.url}`).join('\n\n');
+      alert(`✅ Feedback links generated for ${result.links.length} learners!\n\nLinks:\n\n${linkList}`);
+    } else {
+      alert(result.message || 'No attended learners pending feedback.');
+    }
+  };
+
+  const handleToggleManual = async (isManual) => {
+    const result = await api.toggleManualSatisfaction(
+      feedbackPopup.id, isManual, isManual ? manualValue : null
+    );
+    if (result.id) {
+      setManualOverride(isManual);
+      loadCourses();
+      setFeedbackPopup(result);
+    }
+  };
+
+  const handleSaveManualValue = async () => {
+    const result = await api.toggleManualSatisfaction(feedbackPopup.id, true, manualValue);
+    if (result.id) {
+      loadCourses();
+      setFeedbackPopup(result);
+      alert('Satisfaction rate updated.');
+    }
+  };
+
   const handleSave = async () => {
     if (!form.title) { alert('Course title is required.'); return; }
     try {
@@ -127,6 +190,7 @@ function CoursesPage() {
         pr_number:         form.pr,
         table_of_contents: form.tableOfContents,
         stars:             +form.stars || 0,
+        training_type:     form.trainingType,
       });
       if (newCourse.id) {
         loadCourses();
@@ -162,6 +226,7 @@ function CoursesPage() {
         pr_number:         editForm.pr,
         table_of_contents: editForm.tableOfContents,
         stars:             +editForm.stars || 0,
+        training_type:     editForm.trainingType,
       });
       if (updated.id) {
         loadCourses();
@@ -194,6 +259,7 @@ function CoursesPage() {
       pr:              course.pr_number         || '',
       venue:           course.venue             || '',
       stars:           course.stars             || 0,
+      trainingType:    course.training_type     || 'Developmental',
     });
     setEditCourse(course);
   };
@@ -214,19 +280,14 @@ function CoursesPage() {
       })
     : '—';
 
-  // Get unique departments from enrolled learners
   const enrolledDepts = [...new Set(
-    enrolledLearners
-      .map(l => l.department_name)
-      .filter(Boolean)
+    enrolledLearners.map(l => l.department_name).filter(Boolean)
   )];
 
-  // Filter enrolled learners by selected dept
   const filteredEnrolled = deptFilter
     ? enrolledLearners.filter(l => l.department_name === deptFilter)
     : enrolledLearners;
 
-  // Department breakdown stats
   const deptBreakdown = enrolledDepts.map(dept => {
     const deptLearners = enrolledLearners.filter(l => l.department_name === dept);
     const attended     = deptLearners.filter(l => l.attended).length;
@@ -253,6 +314,17 @@ function CoursesPage() {
       </span>
     );
   };
+
+  const TrainingTypeBadge = ({ type }) => (
+    <span style={{
+      background: type === 'Mandatory' ? '#fee2e2' : '#f0f9ff',
+      color:      type === 'Mandatory' ? '#991b1b' : '#0369a1',
+      padding: '3px 10px', borderRadius: '20px',
+      fontSize: '11px', fontWeight: '600',
+    }}>
+      {type === 'Mandatory' ? '⚠️ Mandatory' : '📘 Developmental'}
+    </span>
+  );
 
   const Stars = ({ value, showPct = false }) => {
     const pct = Math.round((+value / 5) * 100);
@@ -285,6 +357,58 @@ function CoursesPage() {
     );
   };
 
+  const renderUpcomingCard = (course) => (
+    <div key={course.id} style={styles.upcomingCard}>
+      <div style={styles.upcomingCardHeader}>
+        <span style={{
+          padding: '3px 10px', borderRadius: '20px',
+          fontSize: '11px', fontWeight: '600',
+          background: course.status === 'Ongoing' ? '#dbeafe' : '#fef9c3',
+          color:      course.status === 'Ongoing' ? '#1d4ed8' : '#a16207',
+        }}>
+          {course.status}
+        </span>
+        <span style={{ fontSize: '11px', color: '#9baabb' }}>
+          {course.type || 'External'}
+        </span>
+      </div>
+      <div style={styles.upcomingCardTitle}>{course.title}</div>
+      <div style={styles.upcomingCardMeta}>
+        <div style={styles.upcomingMetaItem}>
+          <span style={styles.upcomingMetaIcon}>👤</span>
+          <button
+            style={{
+              background: 'none', border: 'none', padding: 0,
+              fontSize: '12px', color: '#0369a1', cursor: 'pointer',
+              fontFamily: 'Inter, sans-serif', textDecoration: 'underline',
+            }}
+            onClick={() => openTrainerPopup(course.trainer_name)}
+          >
+            {course.trainer_name || '—'}
+          </button>
+        </div>
+        <div style={styles.upcomingMetaItem}>
+          <span style={styles.upcomingMetaIcon}>📅</span>
+          <span>{fmtDate(course.start_date)}</span>
+        </div>
+        <div style={styles.upcomingMetaItem}>
+          <span style={styles.upcomingMetaIcon}>📍</span>
+          <span>{course.venue || '—'}</span>
+        </div>
+        <div style={styles.upcomingMetaItem}>
+          <span style={styles.upcomingMetaIcon}>👥</span>
+          <span>{course.enrolled_count || 0} enrolled</span>
+        </div>
+      </div>
+      <button
+        style={styles.upcomingViewBtn}
+        onClick={() => openDetail(course)}
+      >
+        View Details →
+      </button>
+    </div>
+  );
+
   return (
     <div style={styles.page}>
 
@@ -310,9 +434,11 @@ function CoursesPage() {
         </div>
         <div style={styles.statCard}>
           <div style={styles.statIcon}>📅</div>
-          <div style={styles.statNum}>{upcomingCourses.length}</div>
+          <div style={styles.statNum}>{upcomingDevelopmental.length + upcomingMandatory.length}</div>
           <div style={styles.statLbl}>Upcoming Courses</div>
-          <div style={styles.statSub}>Pending + Ongoing</div>
+          <div style={styles.statSub}>
+            {upcomingDevelopmental.length} Dev · {upcomingMandatory.length} Mandatory
+          </div>
         </div>
         <div style={styles.statCard}>
           <div style={styles.statIcon}>👥</div>
@@ -322,70 +448,42 @@ function CoursesPage() {
         </div>
       </div>
 
-      {/* ── UPCOMING COURSES SECTION ── */}
-      {upcomingCourses.length > 0 && (
+      {/* ── UPCOMING COURSES — SIDE BY SIDE ── */}
+      <div style={styles.upcomingSplitGrid}>
+
         <div style={styles.upcomingSection}>
           <div style={styles.upcomingHeader}>
-            <span style={styles.upcomingTitle}>Upcoming & Ongoing Courses</span>
+            <span style={styles.upcomingTitle}>📘 Upcoming Developmental Courses</span>
             <span style={{ fontSize: '12px', color: '#9baabb' }}>
-              {upcomingCourses.length} course{upcomingCourses.length !== 1 ? 's' : ''}
+              {upcomingDevelopmental.length}
             </span>
           </div>
-          <div style={styles.upcomingGrid}>
-            {upcomingCourses.map(course => (
-              <div key={course.id} style={styles.upcomingCard}>
-                <div style={styles.upcomingCardHeader}>
-                  <span style={{
-                    padding: '3px 10px', borderRadius: '20px',
-                    fontSize: '11px', fontWeight: '600',
-                    background: course.status === 'Ongoing' ? '#dbeafe' : '#fef9c3',
-                    color:      course.status === 'Ongoing' ? '#1d4ed8' : '#a16207',
-                  }}>
-                    {course.status}
-                  </span>
-                  <span style={{ fontSize: '11px', color: '#9baabb' }}>
-                    {course.type || 'External'}
-                  </span>
-                </div>
-                <div style={styles.upcomingCardTitle}>{course.title}</div>
-                <div style={styles.upcomingCardMeta}>
-                  <div style={styles.upcomingMetaItem}>
-                    <span style={styles.upcomingMetaIcon}>👤</span>
-                    <button
-                      style={{
-                        background: 'none', border: 'none', padding: 0,
-                        fontSize: '12px', color: '#0369a1', cursor: 'pointer',
-                        fontFamily: 'Inter, sans-serif', textDecoration: 'underline',
-                      }}
-                      onClick={() => openTrainerPopup(course.trainer_name)}
-                    >
-                      {course.trainer_name || '—'}
-                    </button>
-                  </div>
-                  <div style={styles.upcomingMetaItem}>
-                    <span style={styles.upcomingMetaIcon}>📅</span>
-                    <span>{fmtDate(course.start_date)}</span>
-                  </div>
-                  <div style={styles.upcomingMetaItem}>
-                    <span style={styles.upcomingMetaIcon}>📍</span>
-                    <span>{course.venue || '—'}</span>
-                  </div>
-                  <div style={styles.upcomingMetaItem}>
-                    <span style={styles.upcomingMetaIcon}>👥</span>
-                    <span>{course.enrolled_count || 0} enrolled</span>
-                  </div>
-                </div>
-                <button
-                  style={styles.upcomingViewBtn}
-                  onClick={() => openDetail(course)}
-                >
-                  View Details →
-                </button>
-              </div>
-            ))}
-          </div>
+          {upcomingDevelopmental.length > 0 ? (
+            <div style={styles.upcomingGridSingle}>
+              {upcomingDevelopmental.map(renderUpcomingCard)}
+            </div>
+          ) : (
+            <div style={styles.upcomingEmpty}>No upcoming developmental courses.</div>
+          )}
         </div>
-      )}
+
+        <div style={{ ...styles.upcomingSection, borderColor: '#fecaca' }}>
+          <div style={styles.upcomingHeader}>
+            <span style={styles.upcomingTitle}>⚠️ Upcoming Mandatory Courses</span>
+            <span style={{ fontSize: '12px', color: '#9baabb' }}>
+              {upcomingMandatory.length}
+            </span>
+          </div>
+          {upcomingMandatory.length > 0 ? (
+            <div style={styles.upcomingGridSingle}>
+              {upcomingMandatory.map(renderUpcomingCard)}
+            </div>
+          ) : (
+            <div style={styles.upcomingEmpty}>No upcoming mandatory courses.</div>
+          )}
+        </div>
+
+      </div>
 
       {/* ── CONTROLS ── */}
       <div style={styles.controls}>
@@ -399,33 +497,45 @@ function CoursesPage() {
               onChange={e => handleSearch(e.target.value)}
             />
           </div>
-          {/* Department filter */}
+
           <select
             value={filterDept}
             onChange={e => { setFilterDept(e.target.value); setCurrentPage(1); }}
-            style={{
-              padding: '9px 14px', border: '1.5px solid #e8ecf0',
-              borderRadius: '8px', fontSize: '13px', outline: 'none',
-              background: '#ffffff', color: filterDept ? '#051c2c' : '#9baabb',
-              fontFamily: 'Inter, sans-serif', cursor: 'pointer',
-              minWidth: '180px',
-            }}
+            style={styles.filterSelect}
           >
             <option value="">All Departments</option>
             {departments.map(d => (
               <option key={d.id} value={d.name}>{d.name}</option>
             ))}
           </select>
-          {filterDept && (
+
+          <div style={styles.dateFilterPair}>
+            <input
+              type="date"
+              value={filterStartDate}
+              onChange={e => { setFilterStartDate(e.target.value); setCurrentPage(1); }}
+              style={styles.dateInputSmall}
+              title="Filter from date"
+            />
+            <span style={{ fontSize: '12px', color: '#9baabb' }}>to</span>
+            <input
+              type="date"
+              value={filterEndDate}
+              onChange={e => { setFilterEndDate(e.target.value); setCurrentPage(1); }}
+              style={styles.dateInputSmall}
+              title="Filter to date"
+            />
+          </div>
+
+          {(filterDept || filterStartDate || filterEndDate) && (
             <button
-              onClick={() => { setFilterDept(''); setCurrentPage(1); }}
-              style={{
-                background: '#fee2e2', color: '#991b1b', border: 'none',
-                borderRadius: '8px', padding: '9px 14px', fontSize: '12px',
-                fontWeight: '600', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+              onClick={() => {
+                setFilterDept(''); setFilterStartDate(''); setFilterEndDate('');
+                setCurrentPage(1);
               }}
+              style={styles.clearFilterBtn}
             >
-              ✕ Clear Filter
+              ✕ Clear Filters
             </button>
           )}
         </div>
@@ -443,9 +553,9 @@ function CoursesPage() {
         <div style={styles.tableWrap}>
           <div style={styles.tableTitle}>
             Courses
-            {filterDept && (
+            {(filterStartDate || filterEndDate) && (
               <span style={{ fontSize: '13px', color: '#0369a1', fontWeight: '500', marginLeft: '8px' }}>
-                — filtered by {filterDept}
+                — {filterStartDate || '...'} to {filterEndDate || '...'}
               </span>
             )}
             {searchTitle && (
@@ -455,10 +565,10 @@ function CoursesPage() {
             )}
           </div>
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ ...styles.table, minWidth: '1100px' }}>
+            <table style={{ ...styles.table, minWidth: '1180px' }}>
               <thead>
                 <tr style={styles.theadRow}>
-                  {['No.', 'Name', 'Institute', 'Trainer', 'Start Date', 'End Date',
+                  {['No.', 'Name', 'Training Type', 'Institute', 'Trainer', 'Start Date', 'End Date',
                     'Type', 'Status', 'Enrolled', 'Attended',
                     'Participation Rate', 'Total Learning Hours',
                     'Satisfaction Rate', ''].map(h => (
@@ -488,6 +598,9 @@ function CoursesPage() {
                         >
                           {course.title}
                         </button>
+                      </td>
+                      <td style={styles.td}>
+                        <TrainingTypeBadge type={course.training_type || 'Developmental'} />
                       </td>
                       <td style={{ ...styles.td, color: '#5a6878', fontSize: '12px', minWidth: '120px' }}>
                         {course.institute || '—'}
@@ -540,10 +653,16 @@ function CoursesPage() {
                         {totalHours > 0 ? totalHours + 'h' : '—'}
                       </td>
                       <td style={styles.td}>
-                        {+course.stars > 0
-                          ? <Stars value={course.stars} showPct={true} />
-                          : <span style={{ color: '#9baabb', fontSize: '12px' }}>—</span>
-                        }
+                        <button
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                          onClick={() => openFeedbackPopup(course)}
+                          title="View feedback / satisfaction details"
+                        >
+                          {+course.stars > 0
+                            ? <Stars value={course.stars} showPct={true} />
+                            : <span style={{ color: '#9baabb', fontSize: '12px', textDecoration: 'underline' }}>Rate now</span>
+                          }
+                        </button>
                       </td>
                       <td style={{ ...styles.td, whiteSpace: 'nowrap' }}>
                         <div style={{ display: 'flex', gap: '6px' }}>
@@ -630,7 +749,12 @@ function CoursesPage() {
           <div style={{ ...styles.modal, maxWidth: '860px' }}
             onClick={e => e.stopPropagation()}>
             <div style={styles.modalHeader}>
-              <span style={styles.modalTitle}>{selected.title}</span>
+              <div>
+                <span style={styles.modalTitle}>{selected.title}</span>
+                <div style={{ marginTop: '4px' }}>
+                  <TrainingTypeBadge type={selected.training_type || 'Developmental'} />
+                </div>
+              </div>
               <button style={styles.modalClose} onClick={() => {
                 setSelected(null); setProfileLearner(null); setDeptFilter('');
               }}>×</button>
@@ -641,7 +765,6 @@ function CoursesPage() {
                 <div style={{ fontSize: '40px' }}>📚</div>
               </div>
 
-              {/* Info bar */}
               <div style={styles.infoBar}>
                 {[
                   ['Start Date',           fmtDate(selected.start_date)],
@@ -668,7 +791,6 @@ function CoursesPage() {
                 ))}
               </div>
 
-              {/* Progress bar */}
               {(+selected.enrolled_count || 0) > 0 && (
                 <div style={{ marginBottom: '20px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
@@ -690,7 +812,6 @@ function CoursesPage() {
                 </div>
               )}
 
-              {/* Detail grid */}
               <div style={styles.detailGrid}>
                 {[
                   ['Description',     selected.description || '—'],
@@ -729,16 +850,18 @@ function CoursesPage() {
                   <div style={{ fontSize: '10px', fontWeight: '700', color: '#9baabb', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
                     Satisfaction Rate
                   </div>
-                  <div>
+                  <button
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                    onClick={() => openFeedbackPopup(selected)}
+                  >
                     {+selected.stars > 0
                       ? <Stars value={selected.stars} showPct={true} />
-                      : <span style={{ color: '#9baabb', fontSize: '13px' }}>Not rated yet</span>
+                      : <span style={{ color: '#9baabb', fontSize: '13px', textDecoration: 'underline' }}>Rate now</span>
                     }
-                  </div>
+                  </button>
                 </div>
               </div>
 
-              {/* ── DEPARTMENT BREAKDOWN ── */}
               {!enrollLoading && deptBreakdown.length > 0 && (
                 <div style={{ marginTop: '20px' }}>
                   <div style={styles.sectionLabel}>
@@ -776,7 +899,6 @@ function CoursesPage() {
                 </div>
               )}
 
-              {/* Enrolled Learners Section */}
               <div style={{ marginTop: '8px' }}>
                 <div style={styles.sectionLabel}>
                   Enrolled Learners
@@ -792,10 +914,10 @@ function CoursesPage() {
                   </div>
                 ) : filteredEnrolled.length > 0 ? (
                   <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '500px' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '550px' }}>
                       <thead>
                         <tr style={{ background: '#f8f9fa', borderBottom: '1px solid #e8ecf0' }}>
-                          {['Name', 'Emp ID', 'Department', 'Status', 'Enrolled On'].map(h => (
+                          {['Name', 'Emp ID', 'Department', 'Status', 'Feedback', 'Enrolled On'].map(h => (
                             <th key={h} style={{
                               padding: '10px 12px', textAlign: 'left',
                               fontSize: '10px', fontWeight: '700',
@@ -856,6 +978,20 @@ function CoursesPage() {
                                 {learner.attended ? 'Attended' : 'Enrolled'}
                               </span>
                             </td>
+                            <td style={{ padding: '10px 12px' }}>
+                              {learner.attended ? (
+                                <span style={{
+                                  background: learner.feedback_submitted ? '#dcfce7' : '#fef9c3',
+                                  color:      learner.feedback_submitted ? '#15803d' : '#a16207',
+                                  padding: '2px 8px', borderRadius: '10px',
+                                  fontSize: '11px', fontWeight: '600',
+                                }}>
+                                  {learner.feedback_submitted ? '✓ Submitted' : 'Pending'}
+                                </span>
+                              ) : (
+                                <span style={{ color: '#9baabb', fontSize: '11px' }}>—</span>
+                              )}
+                            </td>
                             <td style={{ padding: '10px 12px', fontSize: '12px', color: '#9baabb', whiteSpace: 'nowrap' }}>
                               {learner.enrolled_at
                                 ? new Date(learner.enrolled_at).toLocaleDateString('en-GB')
@@ -896,6 +1032,20 @@ function CoursesPage() {
                 }}
               >
                 📧 Send Check-in Links
+              </button>
+              <button
+                style={{
+                  ...styles.cancelBtn,
+                  background: (+selected.attended_count || 0) > 0 ? '#dcfce7' : '#f1f5f9',
+                  color:      (+selected.attended_count || 0) > 0 ? '#15803d' : '#9baabb',
+                  border: 'none',
+                  cursor: (+selected.attended_count || 0) > 0 ? 'pointer' : 'not-allowed',
+                }}
+                disabled={(+selected.attended_count || 0) === 0}
+                onClick={() => handleSendFeedback(selected)}
+                title={(+selected.attended_count || 0) === 0 ? 'No attended learners yet' : 'Send feedback form'}
+              >
+                📝 Send Feedback Form
               </button>
               <button style={styles.saveBtn} onClick={() => {
                 setSelected(null);
@@ -1026,6 +1176,153 @@ function CoursesPage() {
         </div>
       )}
 
+      {/* ── FEEDBACK / SATISFACTION POPUP ── */}
+      {feedbackPopup && (
+        <div style={{ ...styles.overlay, zIndex: 1100 }} onClick={() => setFeedbackPopup(null)}>
+          <div style={{ ...styles.modal, maxWidth: '620px' }} onClick={e => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <span style={styles.modalTitle}>Satisfaction Rate — {feedbackPopup.title}</span>
+              <button style={styles.modalClose} onClick={() => setFeedbackPopup(null)}>×</button>
+            </div>
+            <div style={styles.modalBody}>
+
+              {/* Manual vs Auto toggle */}
+              <div style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '14px 16px', background: '#f8f9fa', borderRadius: '10px',
+                border: '1px solid #e8ecf0', marginBottom: '18px',
+              }}>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#051c2c' }}>
+                    {manualOverride ? 'Manually Set' : 'Auto-calculated from feedback'}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#9baabb', marginTop: '2px' }}>
+                    {manualOverride
+                      ? 'Admin has overridden the satisfaction rate'
+                      : `Based on ${feedbackList.length} feedback response${feedbackList.length !== 1 ? 's' : ''}`
+                    }
+                  </div>
+                </div>
+                <div style={styles.periodToggleSmall}>
+                  <button
+                    onClick={() => handleToggleManual(false)}
+                    style={{
+                      ...styles.periodBtnSmall,
+                      ...(!manualOverride ? styles.periodBtnActiveSmall : {}),
+                    }}
+                  >
+                    Auto
+                  </button>
+                  <button
+                    onClick={() => handleToggleManual(true)}
+                    style={{
+                      ...styles.periodBtnSmall,
+                      ...(manualOverride ? styles.periodBtnActiveSmall : {}),
+                    }}
+                  >
+                    Manual
+                  </button>
+                </div>
+              </div>
+
+              {manualOverride && (
+                <div style={{ marginBottom: '18px', padding: '14px 16px', background: '#fef9c3', borderRadius: '10px', border: '1px solid #fde68a' }}>
+                  <div style={{ fontSize: '12px', fontWeight: '600', color: '#92400e', marginBottom: '8px' }}>
+                    Set Manual Satisfaction Rate
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      {[1,2,3,4,5].map(star => (
+                        <button
+                          key={star}
+                          style={{
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            fontSize: '26px', padding: '2px',
+                            color: star <= manualValue ? '#c8973a' : '#d4d9dd',
+                          }}
+                          onClick={() => setManualValue(star)}
+                        >★</button>
+                      ))}
+                    </div>
+                    <span style={{ fontSize: '14px', fontWeight: '700', color: '#c8973a' }}>
+                      {Math.round((manualValue / 5) * 100)}%
+                    </span>
+                    <button
+                      onClick={handleSaveManualValue}
+                      style={{
+                        marginLeft: 'auto', background: '#051c2c', color: '#ffffff',
+                        border: 'none', borderRadius: '6px', padding: '6px 14px',
+                        fontSize: '12px', fontWeight: '600', cursor: 'pointer',
+                        fontFamily: 'Inter, sans-serif',
+                      }}
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Current rate display */}
+              <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                <Stars value={feedbackPopup.stars} size={20} />
+                <div style={{ fontSize: '28px', fontWeight: '800', color: '#c8973a', marginTop: '6px' }}>
+                  {Math.round((+feedbackPopup.stars / 5) * 100)}%
+                </div>
+              </div>
+
+              {/* Feedback responses list */}
+              <div style={styles.sectionLabel}>
+                Feedback Responses ({feedbackList.length})
+              </div>
+
+              {feedbackLoading ? (
+                <div style={{ padding: '20px', textAlign: 'center', color: '#9baabb', fontSize: '13px' }}>
+                  Loading...
+                </div>
+              ) : feedbackList.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto' }}>
+                  {feedbackList.map((f, i) => (
+                    <div key={i} style={{
+                      padding: '12px 14px', borderRadius: '8px',
+                      border: '1px solid #e8ecf0', background: '#f8f9fa',
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: '600', color: '#051c2c' }}>
+                          {f.learner_name}
+                        </span>
+                        <span style={{ fontSize: '11px', color: '#9baabb' }}>
+                          {f.submitted_at ? new Date(f.submitted_at).toLocaleDateString('en-GB') : '—'}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#5a6878', marginBottom: '6px' }}>
+                        {f.department_name || '—'} · {f.emp_id || '—'}
+                      </div>
+                      <div style={{ display: 'flex', gap: '16px', fontSize: '12px' }}>
+                        <span>Satisfaction: <strong style={{ color: '#c8973a' }}>{f.satisfaction}/5</strong></span>
+                        <span>Recommend: <strong style={{ color: '#c8973a' }}>{f.would_recommend}/5</strong></span>
+                      </div>
+                      {f.testimonial && (
+                        <div style={{ fontSize: '12px', color: '#5a6878', marginTop: '8px', fontStyle: 'italic', borderTop: '1px solid #e8ecf0', paddingTop: '8px' }}>
+                          "{f.testimonial}"
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ padding: '20px', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #e8ecf0', textAlign: 'center', fontSize: '13px', color: '#9baabb' }}>
+                  No feedback responses yet. Send the feedback form to attended learners.
+                </div>
+              )}
+
+            </div>
+            <div style={styles.modalFooter}>
+              <button style={styles.cancelBtn} onClick={() => setFeedbackPopup(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -1054,6 +1351,12 @@ function CourseForm({ f, setF, trainers }) {
           style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #e8ecf0', borderRadius: '8px', fontSize: '13px', outline: 'none', background: '#f8f9fa', color: '#051c2c', fontFamily: 'Inter, sans-serif', minHeight: '70px', resize: 'vertical', boxSizing: 'border-box' }}
         />
       </div>
+
+      <div style={{ marginBottom: '14px' }}>
+        <F label="Training Type *" value={f.trainingType} onChange={v => setF({...f, trainingType: v})}
+          type="select" options={['Developmental', 'Mandatory']} />
+      </div>
+
       <div style={styles.formGrid}>
         <F label="Duration (Days)"       value={f.duration}       onChange={v => setF({...f, duration: v})}       placeholder="e.g. 3"     type="number" />
         <F label="Institute"             value={f.institute}      onChange={v => setF({...f, institute: v})}      placeholder="e.g. RERA Academy" />
@@ -1077,10 +1380,9 @@ function CourseForm({ f, setF, trainers }) {
         <F label="Venue"                 value={f.venue}          onChange={v => setF({...f, venue: v})}          placeholder="e.g. Dubai HQ" />
       </div>
 
-      {/* ── SATISFACTION RATE ── */}
       <div style={{ marginTop: '16px', padding: '16px', background: '#f8f9fa', borderRadius: '10px', border: '1px solid #e8ecf0' }}>
         <label style={{ fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '10px' }}>
-          Satisfaction Rate
+          Satisfaction Rate (initial — will switch to auto once feedback is received)
         </label>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{ display: 'flex', gap: '4px' }}>
@@ -1117,14 +1419,6 @@ function CourseForm({ f, setF, trainers }) {
             </button>
           )}
         </div>
-        <div style={{ fontSize: '11px', color: '#9baabb', marginTop: '6px' }}>
-          {+f.stars === 0 && 'Click a star to rate'}
-          {+f.stars === 1 && 'Poor — 20%'}
-          {+f.stars === 2 && 'Fair — 40%'}
-          {+f.stars === 3 && 'Good — 60%'}
-          {+f.stars === 4 && 'Very Good — 80%'}
-          {+f.stars === 5 && 'Excellent — 100%'}
-        </div>
       </div>
     </>
   );
@@ -1159,58 +1453,67 @@ function F({ label, value, onChange, placeholder, type = 'text', options = [] })
 }
 
 const styles = {
-  page:              { padding: '30px', minHeight: '100vh', background: '#f2f4f6', fontFamily: 'Inter, sans-serif' },
-  statGrid:          { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '14px', marginBottom: '20px' },
-  statCard:          { background: '#051c2c', color: '#ffffff', borderRadius: '12px', padding: '18px 16px', display: 'flex', flexDirection: 'column', gap: '4px' },
-  statIcon:          { fontSize: '20px', marginBottom: '4px' },
-  statNum:           { fontSize: '28px', fontWeight: '800', color: '#ffffff', lineHeight: 1 },
-  statLbl:           { fontSize: '12px', fontWeight: '600', color: '#b6bdc2' },
-  statSub:           { fontSize: '11px', color: 'rgba(182,189,194,0.6)' },
-  upcomingSection:   { background: '#ffffff', borderRadius: '12px', border: '1px solid #e8ecf0', padding: '20px', marginBottom: '20px' },
-  upcomingHeader:    { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' },
-  upcomingTitle:     { fontSize: '15px', fontWeight: '700', color: '#051c2c' },
-  upcomingGrid:      { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '14px' },
-  upcomingCard:      { background: '#f8f9fa', borderRadius: '10px', border: '1px solid #e8ecf0', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' },
-  upcomingCardHeader:{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  upcomingCardTitle: { fontSize: '13px', fontWeight: '700', color: '#051c2c', lineHeight: 1.4 },
-  upcomingCardMeta:  { display: 'flex', flexDirection: 'column', gap: '6px' },
-  upcomingMetaItem:  { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#5a6878' },
-  upcomingMetaIcon:  { fontSize: '12px', flexShrink: 0 },
-  upcomingViewBtn:   { background: 'none', border: '1px solid #e8ecf0', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', color: '#051c2c', fontFamily: 'Inter, sans-serif', marginTop: 'auto' },
-  controls:          { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' },
-  searchWrap:        { display: 'flex', alignItems: 'center', background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '8px', padding: '0 12px', gap: '6px' },
-  searchInput:       { border: 'none', outline: 'none', fontSize: '13px', padding: '9px 0', width: '220px', fontFamily: 'Inter, sans-serif', background: 'transparent' },
-  addBtn:            { background: '#051c2c', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
-  tableWrap:         { background: '#ffffff', borderRadius: '12px', border: '1px solid #e8ecf0', overflow: 'hidden' },
-  tableTitle:        { fontSize: '16px', fontWeight: '700', color: '#051c2c', padding: '16px 20px', borderBottom: '1px solid #e8ecf0' },
-  table:             { width: '100%', borderCollapse: 'collapse' },
-  theadRow:          { background: '#051c2c' },
-  th:                { padding: '11px 14px', textAlign: 'left', fontSize: '10px', fontWeight: '700', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' },
-  tr:                { borderBottom: '1px solid #f0f2f4' },
-  td:                { padding: '12px 14px', fontSize: '13px', color: '#051c2c', verticalAlign: 'middle' },
-  courseNameBtn:     { background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: '#051c2c', textAlign: 'left', padding: 0, fontFamily: 'Inter, sans-serif', textDecoration: 'underline', textDecorationColor: '#e8ecf0' },
-  trainerNameBtn:    { background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: '500', color: '#0369a1', textAlign: 'left', padding: 0, fontFamily: 'Inter, sans-serif', textDecoration: 'underline' },
-  typeBadge:         { padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600' },
-  actionBtn:         { background: '#051c2c', border: 'none', borderRadius: '6px', padding: '5px 8px', cursor: 'pointer', fontSize: '13px' },
-  overlay:           { position: 'fixed', inset: 0, background: 'rgba(5,28,44,0.55)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' },
-  modal:             { background: '#ffffff', borderRadius: '16px', width: '100%', maxWidth: '660px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(5,28,44,0.25)' },
-  modalHeader:       { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #e8ecf0', position: 'sticky', top: 0, background: '#ffffff', zIndex: 1 },
-  modalTitle:        { fontSize: '18px', fontWeight: '700', color: '#051c2c' },
-  modalClose:        { background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#9baabb' },
-  modalBody:         { padding: '20px 24px' },
-  photoRow:          { display: 'flex', gap: '16px', marginBottom: '16px', alignItems: 'flex-start' },
-  photoBox:          { width: '90px', height: '90px', border: '2px dashed #e8ecf0', borderRadius: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  formGrid:          { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' },
-  modalFooter:       { padding: '14px 24px', borderTop: '1px solid #e8ecf0', display: 'flex', justifyContent: 'flex-end', gap: '10px' },
-  cancelBtn:         { padding: '9px 20px', background: 'none', border: '1.5px solid #e8ecf0', borderRadius: '8px', fontSize: '13px', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
-  saveBtn:           { padding: '9px 24px', background: '#051c2c', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', color: '#ffffff', fontFamily: 'Inter, sans-serif' },
-  coverImg:          { width: '100%', height: '100px', background: '#f2f4f6', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' },
-  infoBar:           { display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '8px', background: '#f8f9fa', borderRadius: '10px', padding: '14px', marginBottom: '16px', border: '1px solid #e8ecf0' },
-  infoBarItem:       { textAlign: 'center' },
-  infoBarLabel:      { fontSize: '9px', color: '#9baabb', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '4px' },
-  infoBarValue:      { fontSize: '13px', fontWeight: '700', color: '#051c2c' },
-  detailGrid:        { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' },
-  sectionLabel:      { fontSize: '12px', fontWeight: '700', color: '#051c2c', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid #e8ecf0' },
+  page:                 { padding: '30px', minHeight: '100vh', background: '#f2f4f6', fontFamily: 'Inter, sans-serif' },
+  statGrid:             { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '14px', marginBottom: '20px' },
+  statCard:             { background: '#051c2c', color: '#ffffff', borderRadius: '12px', padding: '18px 16px', display: 'flex', flexDirection: 'column', gap: '4px' },
+  statIcon:             { fontSize: '20px', marginBottom: '4px' },
+  statNum:              { fontSize: '28px', fontWeight: '800', color: '#ffffff', lineHeight: 1 },
+  statLbl:              { fontSize: '12px', fontWeight: '600', color: '#b6bdc2' },
+  statSub:              { fontSize: '11px', color: 'rgba(182,189,194,0.6)' },
+  upcomingSplitGrid:    { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' },
+  upcomingSection:      { background: '#ffffff', borderRadius: '12px', border: '1px solid #e8ecf0', padding: '18px' },
+  upcomingHeader:       { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' },
+  upcomingTitle:        { fontSize: '14px', fontWeight: '700', color: '#051c2c' },
+  upcomingGridSingle:   { display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '420px', overflowY: 'auto' },
+  upcomingEmpty:        { padding: '24px', textAlign: 'center', color: '#9baabb', fontSize: '13px' },
+  upcomingCard:         { background: '#f8f9fa', borderRadius: '10px', border: '1px solid #e8ecf0', padding: '14px', display: 'flex', flexDirection: 'column', gap: '8px' },
+  upcomingCardHeader:   { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  upcomingCardTitle:    { fontSize: '13px', fontWeight: '700', color: '#051c2c', lineHeight: 1.4 },
+  upcomingCardMeta:     { display: 'flex', flexDirection: 'column', gap: '5px' },
+  upcomingMetaItem:     { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#5a6878' },
+  upcomingMetaIcon:     { fontSize: '12px', flexShrink: 0 },
+  upcomingViewBtn:      { background: 'none', border: '1px solid #e8ecf0', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', color: '#051c2c', fontFamily: 'Inter, sans-serif', alignSelf: 'flex-start' },
+  controls:             { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' },
+  searchWrap:           { display: 'flex', alignItems: 'center', background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '8px', padding: '0 12px', gap: '6px' },
+  searchInput:          { border: 'none', outline: 'none', fontSize: '13px', padding: '9px 0', width: '200px', fontFamily: 'Inter, sans-serif', background: 'transparent' },
+  filterSelect:         { padding: '9px 12px', border: '1.5px solid #e8ecf0', borderRadius: '8px', fontSize: '13px', outline: 'none', background: '#ffffff', color: '#051c2c', fontFamily: 'Inter, sans-serif', cursor: 'pointer' },
+  dateFilterPair:       { display: 'flex', alignItems: 'center', gap: '8px', background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '8px', padding: '0 10px' },
+  dateInputSmall:       { border: 'none', outline: 'none', fontSize: '12px', padding: '8px 0', fontFamily: 'Inter, sans-serif', color: '#051c2c', background: 'transparent' },
+  clearFilterBtn:       { background: '#fee2e2', color: '#991b1b', border: 'none', borderRadius: '8px', padding: '9px 14px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
+  addBtn:               { background: '#051c2c', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
+  tableWrap:            { background: '#ffffff', borderRadius: '12px', border: '1px solid #e8ecf0', overflow: 'hidden' },
+  tableTitle:           { fontSize: '16px', fontWeight: '700', color: '#051c2c', padding: '16px 20px', borderBottom: '1px solid #e8ecf0' },
+  table:                { width: '100%', borderCollapse: 'collapse' },
+  theadRow:             { background: '#051c2c' },
+  th:                   { padding: '11px 14px', textAlign: 'left', fontSize: '10px', fontWeight: '700', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' },
+  tr:                   { borderBottom: '1px solid #f0f2f4' },
+  td:                   { padding: '12px 14px', fontSize: '13px', color: '#051c2c', verticalAlign: 'middle' },
+  courseNameBtn:        { background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: '#051c2c', textAlign: 'left', padding: 0, fontFamily: 'Inter, sans-serif', textDecoration: 'underline', textDecorationColor: '#e8ecf0' },
+  trainerNameBtn:       { background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: '500', color: '#0369a1', textAlign: 'left', padding: 0, fontFamily: 'Inter, sans-serif', textDecoration: 'underline' },
+  typeBadge:            { padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600' },
+  actionBtn:            { background: '#051c2c', border: 'none', borderRadius: '6px', padding: '5px 8px', cursor: 'pointer', fontSize: '13px' },
+  overlay:              { position: 'fixed', inset: 0, background: 'rgba(5,28,44,0.55)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' },
+  modal:                { background: '#ffffff', borderRadius: '16px', width: '100%', maxWidth: '660px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(5,28,44,0.25)' },
+  modalHeader:          { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '20px 24px', borderBottom: '1px solid #e8ecf0', position: 'sticky', top: 0, background: '#ffffff', zIndex: 1 },
+  modalTitle:           { fontSize: '18px', fontWeight: '700', color: '#051c2c' },
+  modalClose:           { background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#9baabb' },
+  modalBody:            { padding: '20px 24px' },
+  photoRow:             { display: 'flex', gap: '16px', marginBottom: '16px', alignItems: 'flex-start' },
+  photoBox:             { width: '90px', height: '90px', border: '2px dashed #e8ecf0', borderRadius: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  formGrid:             { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' },
+  modalFooter:          { padding: '14px 24px', borderTop: '1px solid #e8ecf0', display: 'flex', justifyContent: 'flex-end', gap: '8px', flexWrap: 'wrap' },
+  cancelBtn:            { padding: '9px 16px', background: 'none', border: '1.5px solid #e8ecf0', borderRadius: '8px', fontSize: '12.5px', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
+  saveBtn:              { padding: '9px 20px', background: '#051c2c', border: 'none', borderRadius: '8px', fontSize: '12.5px', fontWeight: '600', cursor: 'pointer', color: '#ffffff', fontFamily: 'Inter, sans-serif' },
+  coverImg:             { width: '100%', height: '100px', background: '#f2f4f6', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' },
+  infoBar:              { display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '8px', background: '#f8f9fa', borderRadius: '10px', padding: '14px', marginBottom: '16px', border: '1px solid #e8ecf0' },
+  infoBarItem:          { textAlign: 'center' },
+  infoBarLabel:         { fontSize: '9px', color: '#9baabb', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '4px' },
+  infoBarValue:         { fontSize: '13px', fontWeight: '700', color: '#051c2c' },
+  detailGrid:           { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' },
+  sectionLabel:         { fontSize: '12px', fontWeight: '700', color: '#051c2c', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid #e8ecf0' },
+  periodToggleSmall:    { display: 'flex', background: '#f2f4f6', borderRadius: '6px', padding: '2px', gap: '2px' },
+  periodBtnSmall:       { padding: '5px 12px', fontSize: '11px', fontWeight: '600', border: 'none', background: 'none', borderRadius: '4px', cursor: 'pointer', color: '#5a6878', fontFamily: 'Inter, sans-serif' },
+  periodBtnActiveSmall: { background: '#051c2c', color: '#ffffff' },
 };
 
 export default CoursesPage;
