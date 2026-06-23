@@ -24,9 +24,10 @@ function ReportsPage() {
     loadData();
   }, []);
 
-  useEffect(() => {
-    loadStats();
-  }, [startDate, endDate]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+useEffect(() => {
+  loadStats();
+}, [startDate, endDate]);
 
   const loadData = () => {
     Promise.all([
