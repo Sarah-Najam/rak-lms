@@ -170,10 +170,16 @@ const api = {
     }).then(r => r.json()),
 
   // ── REPORTS ───────────────────────────────────────────────
-  getReports: (year) =>
-    fetch(`${BASE_URL}/reports${year ? `?year=${year}` : ''}`, {
+  getReports: (params = {}) => {
+    const query = new URLSearchParams();
+    if (params.year)      query.append('year', params.year);
+    if (params.startDate) query.append('startDate', params.startDate);
+    if (params.endDate)   query.append('endDate', params.endDate);
+    const qs = query.toString();
+    return fetch(`${BASE_URL}/reports${qs ? `?${qs}` : ''}`, {
       headers: headers(),
-    }).then(r => r.json()),
+    }).then(r => r.json());
+  },
 
   // ── ENROLLMENTS ───────────────────────────────────────────
   getEnrollmentsByLearner: (id) =>

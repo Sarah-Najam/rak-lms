@@ -17,7 +17,8 @@ function DashboardPage() {
   const loadData = (year) => {
     setLoading(true);
     Promise.all([
-      api.getReports(year),
+      api.getReports({ year }),
+
       api.getCourses(),
       api.getDepartments(),
     ]).then(([s, c]) => {
