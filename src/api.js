@@ -170,8 +170,10 @@ const api = {
     }).then(r => r.json()),
 
   // ── REPORTS ───────────────────────────────────────────────
-  getReports: () =>
-    fetch(`${BASE_URL}/reports`, { headers: headers() }).then(r => r.json()),
+  getReports: (year) =>
+    fetch(`${BASE_URL}/reports${year ? `?year=${year}` : ''}`, {
+      headers: headers(),
+    }).then(r => r.json()),
 
   // ── ENROLLMENTS ───────────────────────────────────────────
   getEnrollmentsByLearner: (id) =>

@@ -3,15 +3,21 @@ import api from '../api';
 
 function DashboardPage() {
 
-  const [stats,   setStats]   = useState(null);
-  const [courses, setCourses] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [calView, setCalView] = useState('Monthly');
-  const [satView, setSatView] = useState('Monthly');
+  const [stats,        setStats]        = useState(null);
+  const [courses,      setCourses]      = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [calView,      setCalView]      = useState('Monthly');
+  const [satView,      setSatView]      = useState('Monthly');
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   useEffect(() => {
+    loadData(selectedYear);
+  }, [selectedYear]);
+
+  const loadData = (year) => {
+    setLoading(true);
     Promise.all([
-      api.getReports(),
+      api.getReports(year),
       api.getCourses(),
       api.getDepartments(),
     ]).then(([s, c]) => {
@@ -19,16 +25,29 @@ function DashboardPage() {
       if (Array.isArray(c)) setCourses(c);
       setLoading(false);
     }).catch(() => setLoading(false));
-  }, []);
+  };
 
-  const developmentalUpcoming = courses
-    .filter(c => (c.status === 'Pending' || c.status === 'Ongoing') &&
-      (c.training_type || 'Developmental') === 'Developmental')
+  const isCurrentYear = stats?.isCurrentYear !== false;
+
+  // Filter courses for the selected year
+  const coursesThisYear = courses.filter(c => {
+    const d = c.start_date || c.end_date || c.created_at;
+    if (!d) return false;
+    return new Date(d).getFullYear() === selectedYear;
+  });
+
+  const developmentalUpcoming = coursesThisYear
+    .filter(c => isCurrentYear
+      ? (c.status === 'Pending' || c.status === 'Ongoing') && (c.training_type || 'Developmental') === 'Developmental'
+      : c.status === 'Completed' && (c.training_type || 'Developmental') === 'Developmental'
+    )
     .slice(0, 5);
 
-  const mandatoryUpcoming = courses
-    .filter(c => (c.status === 'Pending' || c.status === 'Ongoing') &&
-      c.training_type === 'Mandatory')
+  const mandatoryUpcoming = coursesThisYear
+    .filter(c => isCurrentYear
+      ? (c.status === 'Pending' || c.status === 'Ongoing') && c.training_type === 'Mandatory'
+      : c.status === 'Completed' && c.training_type === 'Mandatory'
+    )
     .slice(0, 5);
 
   const fmtDate = d => d
@@ -40,7 +59,7 @@ function DashboardPage() {
 
   const coursesByMonth = MONTHS.map((month, i) => ({
     label: month,
-    value: courses.filter(c => {
+    value: coursesThisYear.filter(c => {
       const d = c.start_date || c.end_date;
       if (!d) return false;
       return new Date(d).getMonth() === i;
@@ -49,7 +68,7 @@ function DashboardPage() {
 
   const coursesByQuarter = ['Q1','Q2','Q3','Q4'].map((q, i) => ({
     label: q,
-    value: courses.filter(c => {
+    value: coursesThisYear.filter(c => {
       const d = c.start_date || c.end_date;
       if (!d) return false;
       return Math.floor(new Date(d).getMonth() / 3) === i;
@@ -66,6 +85,8 @@ function DashboardPage() {
   const overallPct = stats?.overallSatisfaction || 0;
   const hasTrend   = trendData.some(d => d.score > 0);
 
+  const availableYears = stats?.availableYears || [new Date().getFullYear()];
+
   if (loading) return (
     <div style={{ padding: '40px', textAlign: 'center', color: '#9baabb', fontSize: '14px' }}>
       Loading dashboard...
@@ -74,14 +95,33 @@ function DashboardPage() {
 
   return (
     <div style={styles.page}>
+
+      {/* ── HEADER WITH YEAR SELECTOR ── */}
+      <div style={styles.pageHeader}>
+        <div style={{ fontSize: '20px', fontWeight: '700', color: '#051c2c' }}>
+          Training Summary
+          {!isCurrentYear && (
+            <span style={styles.pastYearTag}>Viewing {selectedYear} (archived)</span>
+          )}
+        </div>
+        <div style={styles.yearSelectWrap}>
+          <span style={{ fontSize: '12px', color: '#5a6878', fontWeight: '600' }}>Year</span>
+          <select
+            value={selectedYear}
+            onChange={e => setSelectedYear(+e.target.value)}
+            style={styles.yearSelect}
+          >
+            {availableYears.map(y => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       <div style={styles.mainGrid}>
 
         {/* ── LEFT COLUMN ── */}
         <div style={styles.leftCol}>
-
-          <div style={{ fontSize: '20px', fontWeight: '700', color: '#051c2c' }}>
-            Training Summary
-          </div>
 
           {/* ── 2×2 STAT CARDS ── */}
           <div style={styles.statGrid}>
@@ -90,25 +130,30 @@ function DashboardPage() {
               <div style={styles.statIcon}>🎓</div>
               <div style={styles.statNum}>{stats?.totalLearners || 0}</div>
               <div style={styles.statLabel}>Total Learners</div>
+              <div style={styles.statSub}>As of end of {selectedYear}</div>
             </div>
 
             <div style={{ ...styles.statCard, background: '#AF5F46' }}>
               <div style={styles.statIcon}>📚</div>
               <div style={styles.statNum}>{stats?.totalCourses || 0}</div>
               <div style={styles.statLabel}>Total Courses</div>
+              <div style={styles.statSub}>As of end of {selectedYear}</div>
             </div>
 
             <div style={{ ...styles.statCard, background: '#6a9ea8' }}>
               <div style={styles.statIcon}>🏆</div>
               <div style={styles.statNum}>{stats?.totalLearnersTrainedThisYear || 0}</div>
               <div style={styles.statLabel}>Learners Trained</div>
-              <div style={styles.statSub}>Jan 1 – Today {new Date().getFullYear()}</div>
+              <div style={styles.statSub}>
+                {isCurrentYear ? `Jan 1 – Today ${selectedYear}` : `Full year ${selectedYear}`}
+              </div>
             </div>
 
             <div style={{ ...styles.statCard, background: '#7a9e7a' }}>
               <div style={styles.statIcon}>⏱️</div>
-              <div style={styles.statNum}>{(stats?.totalCourses || 0) * 20}h</div>
+              <div style={styles.statNum}>{stats?.totalTrainingHours || 0}h</div>
               <div style={styles.statLabel}>Total Training Hours</div>
+              <div style={styles.statSub}>{selectedYear}</div>
             </div>
 
           </div>
@@ -147,7 +192,7 @@ function DashboardPage() {
                 />
               ) : (
                 <div style={styles.noData}>
-                  No data yet.
+                  No data yet for {selectedYear}.
                   <br />
                   <span style={{ fontSize: '11px' }}>
                     Rate courses on the Courses page to see the trend.
@@ -155,7 +200,7 @@ function DashboardPage() {
                 </div>
               )}
               <div style={styles.chartSub}>
-                Cumulative avg satisfaction % — {new Date().getFullYear()}
+                Cumulative avg satisfaction % — {selectedYear}
               </div>
             </div>
 
@@ -202,12 +247,12 @@ function DashboardPage() {
                     Overall Score
                   </div>
                   <div style={{ fontSize: '11px', color: '#9baabb', textAlign: 'center' }}>
-                    {(overallPct / 100 * 5).toFixed(1)} / 5 stars — all rated courses
+                    {(overallPct / 100 * 5).toFixed(1)} / 5 stars — {selectedYear}
                   </div>
                 </div>
               ) : (
                 <div style={styles.noData}>
-                  No data yet.
+                  No data yet for {selectedYear}.
                   <br />
                   <span style={{ fontSize: '11px' }}>Rate courses to see the overall score.</span>
                 </div>
@@ -220,13 +265,13 @@ function DashboardPage() {
         {/* ── RIGHT COLUMN ── */}
         <div style={styles.rightCol}>
 
-          {/* Upcoming Developmental Trainings */}
+          {/* Upcoming/Completed Developmental Trainings */}
           <div style={styles.calCard}>
             <div style={{
               fontSize: '14px', fontWeight: '700',
               color: '#ffffff', marginBottom: '14px',
             }}>
-              📅 Upcoming Developmental Trainings
+              📅 {isCurrentYear ? 'Upcoming' : 'Completed'} Developmental Trainings
             </div>
             {developmentalUpcoming.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -236,7 +281,7 @@ function DashboardPage() {
               </div>
             ) : (
               <div style={{ color: 'rgba(182,189,194,0.6)', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
-                No upcoming developmental courses.
+                No {isCurrentYear ? 'upcoming' : 'completed'} developmental courses{!isCurrentYear ? ` in ${selectedYear}` : ''}.
               </div>
             )}
           </div>
@@ -247,7 +292,7 @@ function DashboardPage() {
               fontSize: '14px', fontWeight: '700',
               color: '#ffffff', marginBottom: '14px',
             }}>
-              ⚠️ Mandatory Trainings — {new Date().getFullYear()}
+              ⚠️ {isCurrentYear ? 'Mandatory Trainings' : 'Completed Mandatory Trainings'} — {selectedYear}
             </div>
             {mandatoryUpcoming.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -257,7 +302,7 @@ function DashboardPage() {
               </div>
             ) : (
               <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
-                No mandatory training scheduled this year.
+                No mandatory training {isCurrentYear ? 'scheduled' : 'completed'} in {selectedYear}.
               </div>
             )}
           </div>
@@ -391,26 +436,30 @@ function MiniBarChart({ data, maxVal, color, suffix }) {
 }
 
 const styles = {
-  page:        { padding: '30px', minHeight: '100vh', background: '#f2f4f6', fontFamily: 'Inter, sans-serif' },
-  mainGrid:    { display: 'grid', gridTemplateColumns: '1fr 380px', gap: '24px', alignItems: 'start' },
-  leftCol:     { display: 'flex', flexDirection: 'column', gap: '20px' },
-  rightCol:    { display: 'flex', flexDirection: 'column', gap: '20px' },
-  statGrid:    { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' },
-  statCard:    { borderRadius: '14px', padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: '6px' },
-  statIcon:    { fontSize: '22px', marginBottom: '2px' },
-  statNum:     { fontSize: '36px', fontWeight: '800', color: '#ffffff', lineHeight: 1, letterSpacing: '-1px' },
-  statLabel:   { fontSize: '13px', color: 'rgba(255,255,255,0.75)', fontWeight: '500' },
-  statSub:     { fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginTop: '1px' },
-  chartsRow:   { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' },
-  chartCard:   { background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '12px', padding: '18px 20px' },
-  chartHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' },
-  chartTitle:  { fontSize: '13px', fontWeight: '600', color: '#051c2c' },
-  chartSub:    { fontSize: '11px', color: '#9baabb', textAlign: 'center', marginTop: '8px' },
-  toggleGroup: { display: 'flex', background: '#f2f4f6', borderRadius: '6px', padding: '2px', gap: '2px' },
-  toggleBtn:   { padding: '3px 10px', fontSize: '11px', fontWeight: '500', border: 'none', background: 'none', borderRadius: '4px', cursor: 'pointer', color: '#5a6878', fontFamily: 'Inter, sans-serif' },
-  toggleActive:{ background: '#051c2c', color: '#ffffff' },
-  calCard:     { background: '#051c2c', borderRadius: '12px', padding: '20px', color: '#ffffff' },
-  noData:      { padding: '20px 16px', textAlign: 'center', color: '#9baabb', fontSize: '12px', lineHeight: 1.6, background: '#f8f9fa', borderRadius: '8px', border: '1px solid #e8ecf0' },
+  page:           { padding: '30px', minHeight: '100vh', background: '#f2f4f6', fontFamily: 'Inter, sans-serif' },
+  pageHeader:     { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' },
+  pastYearTag:    { display: 'inline-block', marginLeft: '12px', fontSize: '12px', fontWeight: '600', color: '#a16207', background: '#fef9c3', padding: '3px 10px', borderRadius: '20px', verticalAlign: 'middle' },
+  yearSelectWrap: { display: 'flex', alignItems: 'center', gap: '8px', background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '8px', padding: '6px 12px' },
+  yearSelect:     { border: 'none', outline: 'none', fontSize: '14px', fontWeight: '700', color: '#051c2c', background: 'transparent', fontFamily: 'Inter, sans-serif', cursor: 'pointer' },
+  mainGrid:       { display: 'grid', gridTemplateColumns: '1fr 380px', gap: '24px', alignItems: 'start' },
+  leftCol:        { display: 'flex', flexDirection: 'column', gap: '20px' },
+  rightCol:       { display: 'flex', flexDirection: 'column', gap: '20px' },
+  statGrid:       { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' },
+  statCard:       { borderRadius: '14px', padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: '6px' },
+  statIcon:       { fontSize: '22px', marginBottom: '2px' },
+  statNum:        { fontSize: '36px', fontWeight: '800', color: '#ffffff', lineHeight: 1, letterSpacing: '-1px' },
+  statLabel:      { fontSize: '13px', color: 'rgba(255,255,255,0.75)', fontWeight: '500' },
+  statSub:        { fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginTop: '1px' },
+  chartsRow:      { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' },
+  chartCard:      { background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '12px', padding: '18px 20px' },
+  chartHeader:    { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' },
+  chartTitle:     { fontSize: '13px', fontWeight: '600', color: '#051c2c' },
+  chartSub:       { fontSize: '11px', color: '#9baabb', textAlign: 'center', marginTop: '8px' },
+  toggleGroup:    { display: 'flex', background: '#f2f4f6', borderRadius: '6px', padding: '2px', gap: '2px' },
+  toggleBtn:      { padding: '3px 10px', fontSize: '11px', fontWeight: '500', border: 'none', background: 'none', borderRadius: '4px', cursor: 'pointer', color: '#5a6878', fontFamily: 'Inter, sans-serif' },
+  toggleActive:   { background: '#051c2c', color: '#ffffff' },
+  calCard:        { background: '#051c2c', borderRadius: '12px', padding: '20px', color: '#ffffff' },
+  noData:         { padding: '20px 16px', textAlign: 'center', color: '#9baabb', fontSize: '12px', lineHeight: 1.6, background: '#f8f9fa', borderRadius: '8px', border: '1px solid #e8ecf0' },
 };
 
 export default DashboardPage;
