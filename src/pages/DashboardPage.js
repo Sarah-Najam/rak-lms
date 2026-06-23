@@ -21,8 +21,14 @@ function DashboardPage() {
     }).catch(() => setLoading(false));
   }, []);
 
-  const upcomingCourses = courses
-    .filter(c => c.status === 'Pending' || c.status === 'Ongoing')
+  const developmentalUpcoming = courses
+    .filter(c => (c.status === 'Pending' || c.status === 'Ongoing') &&
+      (c.training_type || 'Developmental') === 'Developmental')
+    .slice(0, 5);
+
+  const mandatoryUpcoming = courses
+    .filter(c => (c.status === 'Pending' || c.status === 'Ongoing') &&
+      c.training_type === 'Mandatory')
     .slice(0, 5);
 
   const fmtDate = d => d
@@ -50,8 +56,8 @@ function DashboardPage() {
     }).length,
   }));
 
-  const calData    = calView === 'Monthly' ? coursesByMonth : coursesByQuarter;
-  const maxCal     = Math.max(...calData.map(d => d.value), 1);
+  const calData  = calView === 'Monthly' ? coursesByMonth : coursesByQuarter;
+  const maxCal   = Math.max(...calData.map(d => d.value), 1);
 
   const trendData  = satView === 'Monthly'
     ? (stats?.satisfactionTrend     || [])
@@ -214,62 +220,44 @@ function DashboardPage() {
         {/* ── RIGHT COLUMN ── */}
         <div style={styles.rightCol}>
 
-          {/* Upcoming Trainings */}
+          {/* Upcoming Developmental Trainings */}
           <div style={styles.calCard}>
             <div style={{
               fontSize: '14px', fontWeight: '700',
               color: '#ffffff', marginBottom: '14px',
             }}>
-              📅 Upcoming Trainings
+              📅 Upcoming Developmental Trainings
             </div>
-            {upcomingCourses.length > 0 ? (
+            {developmentalUpcoming.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {upcomingCourses.map(course => (
-                  <div key={course.id} style={{
-                    display: 'flex', alignItems: 'center', gap: '10px',
-                    padding: '9px 10px', borderRadius: '8px',
-                    background: 'rgba(255,255,255,0.06)',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                  }}>
-                    <div style={{
-                      minWidth: '38px', height: '38px', borderRadius: '8px',
-                      background: 'rgba(255,255,255,0.1)',
-                      display: 'flex', flexDirection: 'column',
-                      alignItems: 'center', justifyContent: 'center',
-                      flexShrink: 0,
-                    }}>
-                      <span style={{ fontSize: '10px', color: 'rgba(182,189,194,0.7)', fontWeight: '600', lineHeight: 1 }}>
-                        {fmtDate(course.start_date).split(' ')[1] || '—'}
-                      </span>
-                      <span style={{ fontSize: '13px', color: '#ffffff', fontWeight: '700', lineHeight: 1.2 }}>
-                        {fmtDate(course.start_date).split(' ')[0] || '—'}
-                      </span>
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{
-                        fontSize: '12px', fontWeight: '600', color: '#ffffff',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      }}>
-                        {course.title}
-                      </div>
-                      <div style={{ fontSize: '11px', color: 'rgba(182,189,194,0.7)', marginTop: '2px' }}>
-                        {course.trainer_name || '—'}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontSize: '12px', fontWeight: '700', color: '#ffffff' }}>
-                        {course.enrolled_count || 0}
-                      </div>
-                      <div style={{ fontSize: '10px', color: 'rgba(182,189,194,0.6)' }}>
-                        enrolled
-                      </div>
-                    </div>
-                  </div>
+                {developmentalUpcoming.map(course => (
+                  <TrainingRow key={course.id} course={course} fmtDate={fmtDate} />
                 ))}
               </div>
             ) : (
               <div style={{ color: 'rgba(182,189,194,0.6)', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
-                No upcoming courses.
+                No upcoming developmental courses.
+              </div>
+            )}
+          </div>
+
+          {/* Mandatory Trainings */}
+          <div style={{ ...styles.calCard, background: '#AF5F46' }}>
+            <div style={{
+              fontSize: '14px', fontWeight: '700',
+              color: '#ffffff', marginBottom: '14px',
+            }}>
+              ⚠️ Mandatory Trainings — {new Date().getFullYear()}
+            </div>
+            {mandatoryUpcoming.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {mandatoryUpcoming.map(course => (
+                  <TrainingRow key={course.id} course={course} fmtDate={fmtDate} />
+                ))}
+              </div>
+            ) : (
+              <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
+                No mandatory training scheduled this year.
               </div>
             )}
           </div>
@@ -301,6 +289,51 @@ function DashboardPage() {
             />
           </div>
 
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TrainingRow({ course, fmtDate }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: '10px',
+      padding: '9px 10px', borderRadius: '8px',
+      background: 'rgba(255,255,255,0.08)',
+      border: '1px solid rgba(255,255,255,0.1)',
+    }}>
+      <div style={{
+        minWidth: '38px', height: '38px', borderRadius: '8px',
+        background: 'rgba(255,255,255,0.12)',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0,
+      }}>
+        <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.7)', fontWeight: '600', lineHeight: 1 }}>
+          {fmtDate(course.start_date).split(' ')[1] || '—'}
+        </span>
+        <span style={{ fontSize: '13px', color: '#ffffff', fontWeight: '700', lineHeight: 1.2 }}>
+          {fmtDate(course.start_date).split(' ')[0] || '—'}
+        </span>
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: '12px', fontWeight: '600', color: '#ffffff',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {course.title}
+        </div>
+        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)', marginTop: '2px' }}>
+          {course.trainer_name || '—'}
+        </div>
+      </div>
+      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+        <div style={{ fontSize: '12px', fontWeight: '700', color: '#ffffff' }}>
+          {course.enrolled_count || 0}
+        </div>
+        <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.6)' }}>
+          enrolled
         </div>
       </div>
     </div>
