@@ -681,17 +681,22 @@ function LearnersPage() {
                             <div style={{ fontSize: '13px', fontWeight: '600', color: '#051c2c' }}>
                               {course.title}
                             </div>
-                            <div style={{ fontSize: '11px', color: '#9baabb', marginTop: '2px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                              <span>{course.institute || '—'}</span>
-                              <span>·</span>
-                              <span>{course.duration_hours || 0}h</span>
-                              {course.enrolled_at && (
-                                <>
-                                  <span>·</span>
-                                  <span>Enrolled {new Date(course.enrolled_at).toLocaleDateString('en-GB')}</span>
-                                </>
-                              )}
-                            </div>
+                           <div style={{ fontSize: '11px', color: '#9baabb', marginTop: '2px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+  <span>{course.institute || '—'}</span>
+  <span>·</span>
+  <span>{course.duration_hours || 0}h</span>
+  {course.start_date && (
+    <>
+      <span>·</span>
+      <span>
+        {new Date(course.start_date).toLocaleDateString('en-GB')}
+        {course.end_date && course.end_date !== course.start_date
+          ? ' – ' + new Date(course.end_date).toLocaleDateString('en-GB')
+          : ''}
+      </span>
+    </>
+  )}
+</div>
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
                             <span style={{
