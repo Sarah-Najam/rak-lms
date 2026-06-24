@@ -24,10 +24,15 @@ function ReportsPage() {
     loadData();
   }, []);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-useEffect(() => {
-  loadStats();
-}, [startDate, endDate]);
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    api.getReports({ startDate, endDate })
+      .then(s => setStats(s))
+      .catch(() => {});
+  }, [startDate, endDate]);
 
   const loadData = () => {
     Promise.all([
@@ -40,12 +45,6 @@ useEffect(() => {
       if (Array.isArray(c)) setCourses(c);
       setLoading(false);
     }).catch(() => setLoading(false));
-  };
-
-  const loadStats = () => {
-    api.getReports({ startDate, endDate })
-      .then(s => setStats(s))
-      .catch(() => {});
   };
 
   // Filter courses by date range for display
