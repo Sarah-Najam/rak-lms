@@ -17,10 +17,16 @@ import SetPasswordPage from './pages/SetPasswordPage';
 function App() {
 
   const [currentUser, setCurrentUser] = useState(null);
-  const [activePage,  setActivePage]  = useState('dashboard');
+  const [activePage,  setActivePage]  = useState(
+    localStorage.getItem('activePage') || 'dashboard'
+  );
 
-  const handleLogin  = (user) => { setCurrentUser(user); };
-  const handleLogout = () => {
+const handleLogin  = (user) => { setCurrentUser(user); };
+
+  const navigateTo = (page) => {
+    setActivePage(page);
+    localStorage.setItem('activePage', page);
+  };  const handleLogout = () => {
     localStorage.removeItem('token');
     setCurrentUser(null);
     setActivePage('dashboard');
@@ -96,7 +102,7 @@ function App() {
     <div style={{ display: 'flex', height: '100vh', fontFamily: 'Inter, sans-serif' }}>
       <Sidebar
         activePage={activePage}
-        onNavigate={(page) => setActivePage(page)}
+        onNavigate={navigateTo}
         user={currentUser}
         onLogout={handleLogout}
       />
