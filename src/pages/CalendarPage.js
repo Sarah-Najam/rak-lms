@@ -6,7 +6,7 @@ const ITEMS_PER_PAGE = 20;
 
 const STATUS_OPTIONS   = ['Planned', 'Scheduled', 'Ongoing', 'Completed', 'Postponed', 'On hold', 'Cancelled'];
 const DELIVERY_OPTIONS = ['Classroom', 'Online', 'Hybrid', 'E-Learning', 'Workshop', 'Conference', 'Training'];
-const TYPE_OPTIONS     = ['Mandatory', 'Developmental'];
+const TYPE_OPTIONS      = ['Mandatory', 'Developmental'];
 
 function CalendarPage() {
 
@@ -195,20 +195,24 @@ function CalendarPage() {
     );
   };
 
-  const TypeBadge = ({ type }) => (
-    <span style={{
-      background: type === 'Mandatory' ? '#fee2e2' : '#f0f9ff',
-      color:      type === 'Mandatory' ? '#991b1b' : '#0369a1',
-      padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600',
-    }}>
-      {type === 'Mandatory' ? '⚠️ Mandatory' : '📘 Developmental'}
+  // Icon next to training name: black triangle = Developmental, blue square = Mandatory
+  const TrainingTypeIcon = ({ type }) => (
+    <span
+      title={type === 'Mandatory' ? 'Mandatory Training' : 'Developmental Training'}
+      style={{
+        display: 'inline-block', marginRight: '6px',
+        color: type === 'Mandatory' ? '#1d4ed8' : '#111827',
+        fontSize: '11px', verticalAlign: 'middle',
+      }}
+    >
+      {type === 'Mandatory' ? '■' : '▲'}
     </span>
   );
 
   return (
     <div style={styles.page}>
 
-      {/* ── STAT CARDS ── */}
+      {/* ── STAT CARDS — 4 approved RAK colors only ── */}
       <div style={styles.statGrid}>
         <div style={{ ...styles.statCard, background: '#051C2C' }}>
           <div style={styles.statIcon}>📅</div>
@@ -216,24 +220,19 @@ function CalendarPage() {
           <div style={styles.statLbl}>Total Entries</div>
         </div>
         <div style={{ ...styles.statCard, background: '#AF5F46' }}>
-          <div style={styles.statIcon}>⚠️</div>
+          <div style={styles.statIcon}>■</div>
           <div style={styles.statNum}>{mandatoryCount}</div>
           <div style={styles.statLbl}>Mandatory</div>
         </div>
-        <div style={{ ...styles.statCard, background: '#6a9ea8' }}>
-          <div style={styles.statIcon}>📘</div>
-          <div style={styles.statNum}>{developmentalCount}</div>
-          <div style={styles.statLbl}>Developmental</div>
+        <div style={{ ...styles.statCard, background: '#A5C8D2', color: '#051C2C' }}>
+          <div style={styles.statIcon}>▲</div>
+          <div style={{ ...styles.statNum, color: '#051C2C' }}>{developmentalCount}</div>
+          <div style={{ ...styles.statLbl, color: '#1f3a45' }}>Developmental</div>
         </div>
-        <div style={{ ...styles.statCard, background: '#7a9e7a' }}>
+        <div style={{ ...styles.statCard, background: '#BEC8BE', color: '#051C2C' }}>
           <div style={styles.statIcon}>⏱️</div>
-          <div style={styles.statNum}>{totalHours}h</div>
-          <div style={styles.statLbl}>Total Training Hours</div>
-        </div>
-        <div style={{ ...styles.statCard, background: '#7c3aed' }}>
-          <div style={styles.statIcon}>💰</div>
-          <div style={styles.statNum}>AED {totalCost.toLocaleString()}</div>
-          <div style={styles.statLbl}>Total Estimated Cost</div>
+          <div style={{ ...styles.statNum, color: '#051C2C' }}>{totalHours}h</div>
+          <div style={{ ...styles.statLbl, color: '#2e362e' }}>Total Training Hours</div>
         </div>
       </div>
 
@@ -296,16 +295,19 @@ function CalendarPage() {
         <div style={styles.tableWrap}>
           <div style={styles.tableTitle}>
             Training Calendar
+            <span style={{ fontSize: '11px', color: '#5a6878', fontWeight: '400', marginLeft: '10px' }}>
+              ▲ Developmental &nbsp; ■ Mandatory
+            </span>
             <span style={{ fontSize: '13px', color: '#9baabb', fontWeight: '400', marginLeft: '8px' }}>
               {filtered.length} entr{filtered.length !== 1 ? 'ies' : 'y'}
             </span>
           </div>
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ ...styles.table, minWidth: '1300px' }}>
+            <table style={{ ...styles.table, minWidth: '1180px' }}>
               <thead>
                 <tr style={styles.theadRow}>
                   {['No.', 'Training Name', 'Department', 'Status', 'Start Date', 'End Date',
-                    'Duration', 'Mode of Delivery', 'Type', 'Training Hours', 'Cost (AED)', 'Remarks', ''].map(h => (
+                    'Duration', 'Mode of Delivery', 'Training Hours', 'Cost (AED)', 'Remarks', ''].map(h => (
                     <th key={h} style={styles.th}>{h}</th>
                   ))}
                 </tr>
@@ -316,7 +318,8 @@ function CalendarPage() {
                     <td style={styles.td}>
                       {(currentPage - 1) * ITEMS_PER_PAGE + i + 1}
                     </td>
-                    <td style={{ ...styles.td, minWidth: '180px', fontWeight: 600 }}>
+                    <td style={{ ...styles.td, minWidth: '200px', fontWeight: 600 }}>
+                      <TrainingTypeIcon type={entry.type} />
                       {entry.training_name}
                     </td>
                     <td style={{ ...styles.td, fontSize: '12px' }}>
@@ -338,9 +341,6 @@ function CalendarPage() {
                     </td>
                     <td style={{ ...styles.td, fontSize: '12px' }}>
                       {entry.mode_of_delivery || '—'}
-                    </td>
-                    <td style={styles.td}>
-                      <TypeBadge type={entry.type} />
                     </td>
                     <td style={{ ...styles.td, fontWeight: 600 }}>
                       {entry.training_hours || 0}h
@@ -505,7 +505,7 @@ function F({ label, value, onChange, placeholder, type = 'text', options = [], f
 
 const styles = {
   page:             { padding: '30px', minHeight: '100vh', background: '#f2f4f6', fontFamily: 'Inter, sans-serif' },
-  statGrid:         { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '14px', marginBottom: '20px' },
+  statGrid:         { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px', marginBottom: '20px' },
   statCard:         { color: '#ffffff', borderRadius: '12px', padding: '18px 16px', display: 'flex', flexDirection: 'column', gap: '4px' },
   statIcon:         { fontSize: '20px', marginBottom: '4px' },
   statNum:          { fontSize: '24px', fontWeight: '800', color: '#ffffff', lineHeight: 1 },

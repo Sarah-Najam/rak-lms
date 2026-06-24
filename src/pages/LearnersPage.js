@@ -267,13 +267,13 @@ function LearnersPage() {
       </div>
 
       {/* ── STATS — Total/Active/Inactive/Enrolled/Attended ── */}
-      <div style={styles.statsRow}>
-        <MiniStatColor label="Total Learners"    value={activeTab === 'emirati' ? emiratiLearners.length : learners.length} color="#051C2C" />
-        <MiniStatColor label="Active Learners"   value={activeTab === 'emirati' ? emiratiLearners.filter(l => l.status === 'Active').length : activeLearnersCount} color="#7a9e7a" />
-        <MiniStatColor label="Inactive Learners" value={activeTab === 'emirati' ? emiratiLearners.filter(l => l.status !== 'Active').length : inactiveLearnersCount} color="#AF5F46" />
-        <MiniStatColor label="Enrolled"          value={enrollStats.enrolled} color="#0369a1" sub="course assignments" />
-        <MiniStatColor label="Attended"          value={enrollStats.attended} color="#15803d" sub="completed training" />
-      </div>
+     <div style={styles.statsRow}>
+  <MiniStatColor label="Total Learners"    value={activeTab === 'emirati' ? emiratiLearners.length : learners.length} color="#051C2C" />
+  <MiniStatColor label="Active Learners"   value={activeTab === 'emirati' ? emiratiLearners.filter(l => l.status === 'Active').length : activeLearnersCount} color="#A5C8D2" textDark />
+  <MiniStatColor label="Inactive Learners" value={activeTab === 'emirati' ? emiratiLearners.filter(l => l.status !== 'Active').length : inactiveLearnersCount} color="#AF5F46" />
+  <MiniStatColor label="Enrolled"          value={enrollStats.enrolled} color="#BEC8BE" sub="course assignments" textDark />
+  <MiniStatColor label="Attended"          value={enrollStats.attended} color="#051C2C" sub="completed training" />
+</div>
 
       {/* ── GENDER CARDS (colored) ── */}
       <div style={styles.genderRow}>
@@ -826,12 +826,12 @@ function PersonIcon({ color }) {
   );
 }
 
-function MiniStatColor({ label, value, color, sub }) {
+function MiniStatColor({ label, value, color, sub, textDark }) {
   return (
     <div style={{ ...styles.miniStat, background: color }}>
-      <div style={styles.miniStatLabel}>{label}</div>
-      <div style={styles.miniStatValue}>{value}</div>
-      {sub && <div style={styles.miniStatSub}>{sub}</div>}
+      <div style={{ ...styles.miniStatLabel, color: textDark ? '#1f3a45' : 'rgba(255,255,255,0.7)' }}>{label}</div>
+      <div style={{ ...styles.miniStatValue, color: textDark ? '#051C2C' : '#ffffff' }}>{value}</div>
+      {sub && <div style={{ ...styles.miniStatSub, color: textDark ? '#3a5560' : 'rgba(255,255,255,0.5)' }}>{sub}</div>}
     </div>
   );
 }
