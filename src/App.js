@@ -14,6 +14,9 @@ import ReportsPage     from './pages/ReportsPage';
 import SettingsPage    from './pages/SettingsPage';
 import SetPasswordPage from './pages/SetPasswordPage';
 
+// Pages HOD is NOT allowed to access
+const HOD_BLOCKED_PAGES = ['departments', 'trainers', 'calendar', 'settings'];
+
 function App() {
 
   const [currentUser, setCurrentUser] = useState(null);
@@ -21,13 +24,28 @@ function App() {
     localStorage.getItem('activePage') || 'dashboard'
   );
 
-const handleLogin  = (user) => { setCurrentUser(user); };
+  const handleLogin = (user) => {
+    setCurrentUser(user);
+    // If HOD lands on a blocked page, redirect to dashboard
+    const savedPage = localStorage.getItem('activePage') || 'dashboard';
+    if (user.role === 'hod' && HOD_BLOCKED_PAGES.includes(savedPage)) {
+      setActivePage('dashboard');
+      localStorage.setItem('activePage', 'dashboard');
+    }
+  };
 
   const navigateTo = (page) => {
+    // Prevent HOD from navigating to blocked pages
+    if (currentUser?.role === 'hod' && HOD_BLOCKED_PAGES.includes(page)) {
+      return;
+    }
     setActivePage(page);
     localStorage.setItem('activePage', page);
-  };  const handleLogout = () => {
+  };
+
+  const handleLogout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('activePage');
     setCurrentUser(null);
     setActivePage('dashboard');
   };
@@ -39,10 +57,17 @@ const handleLogin  = (user) => { setCurrentUser(user); };
         const payload = JSON.parse(atob(token.split('.')[1]));
         if (payload.exp * 1000 > Date.now()) {
           setCurrentUser({
-            name:  payload.name,
-            email: payload.email,
-            role:  payload.role,
+            name:          payload.name,
+            email:         payload.email,
+            role:          payload.role,
+            department_id: payload.department_id || null,
           });
+          // Redirect HOD away from blocked pages on refresh
+          const savedPage = localStorage.getItem('activePage') || 'dashboard';
+          if (payload.role === 'hod' && HOD_BLOCKED_PAGES.includes(savedPage)) {
+            setActivePage('dashboard');
+            localStorage.setItem('activePage', 'dashboard');
+          }
         } else {
           localStorage.removeItem('token');
         }
@@ -64,16 +89,23 @@ const handleLogin  = (user) => { setCurrentUser(user); };
   };
 
   const renderPage = () => {
+    const isHod = currentUser?.role === 'hod';
+
+    // Block HOD from restricted pages
+    if (isHod && HOD_BLOCKED_PAGES.includes(activePage)) {
+      return <DashboardPage user={currentUser} />;
+    }
+
     switch (activePage) {
-      case 'dashboard':   return <DashboardPage />;
-      case 'learners':    return <LearnersPage />;
-      case 'courses':     return <CoursesPage />;
-      case 'departments': return <DepartmentsPage />;
-      case 'trainers':    return <TrainersPage />;
-      case 'calendar':    return <CalendarPage />;
-      case 'reports':     return <ReportsPage />;
-      case 'settings':    return <SettingsPage />;
-      default:            return <DashboardPage />;
+      case 'dashboard':   return <DashboardPage   user={currentUser} />;
+      case 'learners':    return <LearnersPage     user={currentUser} />;
+      case 'courses':     return <CoursesPage      user={currentUser} />;
+      case 'departments': return <DepartmentsPage  user={currentUser} />;
+      case 'trainers':    return <TrainersPage     user={currentUser} />;
+      case 'calendar':    return <CalendarPage     user={currentUser} />;
+      case 'reports':     return <ReportsPage      user={currentUser} />;
+      case 'settings':    return <SettingsPage     user={currentUser} />;
+      default:            return <DashboardPage    user={currentUser} />;
     }
   };
 

@@ -3,7 +3,9 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import api from '../api';
 
-function ReportsPage() {
+function ReportsPage({ user }) {
+
+  const isHod = user?.role === 'hod';
 
   const [stats,       setStats]       = useState(null);
   const [departments, setDepartments] = useState([]);
@@ -25,13 +27,8 @@ function ReportsPage() {
   }, []);
 
   useEffect(() => {
-    loadData();
-  }, []);
-
-  useEffect(() => {
-    api.getReports({ startDate, endDate })
-      .then(s => setStats(s))
-      .catch(() => {});
+    loadStats();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startDate, endDate]);
 
   const loadData = () => {
@@ -47,7 +44,12 @@ function ReportsPage() {
     }).catch(() => setLoading(false));
   };
 
-  // Filter courses by date range for display
+  const loadStats = () => {
+    api.getReports({ startDate, endDate })
+      .then(s => setStats(s))
+      .catch(() => {});
+  };
+
   const filteredCourses = courses.filter(c => {
     const d = c.end_date || c.start_date;
     if (!d) return true;
@@ -66,14 +68,9 @@ function ReportsPage() {
         ['Date Range', `${startDate} to ${endDate}`],
         [],
         ['METRIC', 'VALUE'],
-        ['Total Population',           stats?.totalPopulation  || 0],
         ['Total Learners',             stats?.totalLearners    || 0],
         ['Active Learners',            stats?.activeLearners   || 0],
         ['Inactive Learners',          stats?.inactiveLearners || 0],
-        ['Male Learners',              stats?.maleLearners     || 0],
-        ['Female Learners',            stats?.femaleLearners   || 0],
-        ['Emirati Learners',           stats?.emiratiLearners  || 0],
-        ['Total Departments',          stats?.totalDepts       || 0],
         ['Total Courses',              filteredCourses.length],
         ['Total Enrolled (records)',   stats?.totalEnrolled    || 0],
         ['Total Attended (records)',   stats?.totalAttended    || 0],
@@ -86,50 +83,26 @@ function ReportsPage() {
       wsSummary['!cols'] = [{ wch: 30 }, { wch: 20 }];
       XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
 
-      const learnersHeaders = ['Emp ID', 'Name', 'Gender', 'Nationality', 'Department', 'Designation', 'Email', 'Status', 'Joined'];
-      const learnersRows = learners.map(l => [
-        l.emp_id || '', l.name || '', l.gender || '', l.nationality || '',
-        l.department_name || '', l.designation || '', l.email || '', l.status || '',
-        l.created_at ? new Date(l.created_at).toLocaleDateString('en-GB') : '',
-      ]);
+      const learnersHeaders = ['Emp ID', 'Name', 'Gender', 'Nationality', 'Department', 'Designation', 'Status'];
+      const learnersRows = learners.map(l => [l.emp_id || '', l.name || '', l.gender || '', l.nationality || '', l.department_name || '', l.designation || '', l.status || '']);
       const wsLearners = XLSX.utils.aoa_to_sheet([learnersHeaders, ...learnersRows]);
-      wsLearners['!cols'] = [{ wch: 12 }, { wch: 25 }, { wch: 10 }, { wch: 15 }, { wch: 22 }, { wch: 25 }, { wch: 30 }, { wch: 12 }, { wch: 12 }];
       XLSX.utils.book_append_sheet(wb, wsLearners, 'Learners');
 
-      const coursesHeaders = ['Title', 'Training Type', 'Institute', 'Trainer', 'Type', 'Status', 'Start Date', 'End Date', 'Duration (Hours)', 'Enrolled', 'Attended', 'Participation Rate', 'Satisfaction Rate'];
+      const coursesHeaders = ['Title', 'Training Type', 'Status', 'Start Date', 'End Date', 'Duration (Hours)', 'Enrolled', 'Attended', 'Participation Rate', 'Satisfaction Rate'];
       const coursesRows = filteredCourses.map(c => {
         const enrolled = +c.enrolled_count || 0;
         const attended = +c.attended_count || 0;
-        const rate     = enrolled > 0 ? Math.round(attended / enrolled * 100) + '%' : '—';
-        const sat      = +c.stars > 0 ? Math.round((+c.stars / 5) * 100) + '%' : '—';
         return [
-          c.title || '', c.training_type || 'Developmental', c.institute || '', c.trainer_name || '',
-          c.type || '', c.status || '',
+          c.title || '', c.training_type || 'Developmental', c.status || '',
           c.start_date ? new Date(c.start_date).toLocaleDateString('en-GB') : '',
           c.end_date ? new Date(c.end_date).toLocaleDateString('en-GB') : '',
-          c.duration_hours || 0, enrolled, attended, rate, sat,
+          c.duration_hours || 0, enrolled, attended,
+          enrolled > 0 ? Math.round(attended / enrolled * 100) + '%' : '—',
+          +c.stars > 0 ? Math.round((+c.stars / 5) * 100) + '%' : '—',
         ];
       });
       const wsCourses = XLSX.utils.aoa_to_sheet([coursesHeaders, ...coursesRows]);
-      wsCourses['!cols'] = [{ wch: 35 }, { wch: 16 }, { wch: 20 }, { wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 10 }, { wch: 10 }, { wch: 18 }, { wch: 18 }];
       XLSX.utils.book_append_sheet(wb, wsCourses, 'Courses');
-
-      const deptsHeaders = ['Department', 'Active Learners', 'Enrolled Records', 'Attended Records'];
-      const deptsRows = (stats?.mostActiveDepartments || []).map(d => [
-        d.name || '', d.learner_count || 0, d.enrolled_count || 0, d.attended_count || 0,
-      ]);
-      const wsDepts = XLSX.utils.aoa_to_sheet([deptsHeaders, ...deptsRows]);
-      wsDepts['!cols'] = [{ wch: 25 }, { wch: 16 }, { wch: 18 }, { wch: 18 }];
-      XLSX.utils.book_append_sheet(wb, wsDepts, 'Departments');
-
-      const emiratiLearners = learners.filter(l => l.nationality === 'Emirati');
-      const emiratiHeaders  = ['Emp ID', 'Name', 'Gender', 'Department', 'Designation', 'Status'];
-      const emiratiRows = emiratiLearners.map(l => [
-        l.emp_id || '', l.name || '', l.gender || '', l.department_name || '', l.designation || '', l.status || '',
-      ]);
-      const wsEmirati = XLSX.utils.aoa_to_sheet([emiratiHeaders, ...emiratiRows]);
-      wsEmirati['!cols'] = [{ wch: 12 }, { wch: 25 }, { wch: 10 }, { wch: 22 }, { wch: 25 }, { wch: 12 }];
-      XLSX.utils.book_append_sheet(wb, wsEmirati, 'Emirati Learners');
 
       const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -141,21 +114,18 @@ function ReportsPage() {
   };
 
   if (loading || !stats) return (
-    <div style={{ padding: '40px', textAlign: 'center', color: '#9baabb' }}>
-      Loading reports...
-    </div>
+    <div style={{ padding: '40px', textAlign: 'center', color: '#9baabb' }}>Loading reports...</div>
   );
 
   const mostActiveDepartments = stats.mostActiveDepartments || [];
 
-  // Drill-down data resolvers
   const drillDownData = {
-    totalLearners:    { title: 'Total Learners', rows: learners.map(l => [l.name, l.emp_id, l.department_name || '—', l.status]) , headers: ['Name', 'Emp ID', 'Department', 'Status'] },
-    activeLearners:   { title: 'Active Learners', rows: learners.filter(l => l.status === 'Active').map(l => [l.name, l.emp_id, l.department_name || '—']), headers: ['Name', 'Emp ID', 'Department'] },
+    totalLearners:    { title: 'Total Learners',    rows: learners.map(l => [l.name, l.emp_id, l.department_name || '—', l.status]),                        headers: ['Name', 'Emp ID', 'Department', 'Status'] },
+    activeLearners:   { title: 'Active Learners',   rows: learners.filter(l => l.status === 'Active').map(l => [l.name, l.emp_id, l.department_name || '—']),  headers: ['Name', 'Emp ID', 'Department'] },
     inactiveLearners: { title: 'Inactive Learners', rows: learners.filter(l => l.status !== 'Active').map(l => [l.name, l.emp_id, l.department_name || '—', l.status]), headers: ['Name', 'Emp ID', 'Department', 'Status'] },
-    totalCourses:     { title: 'Total Courses', rows: filteredCourses.map(c => [c.title, c.training_type || 'Developmental', c.status]), headers: ['Course', 'Training Type', 'Status'] },
-    totalDepts:       { title: 'Total Departments', rows: departments.map(d => [d.name, d.hod || '—', d.learner_count || 0]), headers: ['Department', 'Head', 'Learners'] },
-    emiratiLearners:  { title: 'Emirati Learners', rows: learners.filter(l => l.nationality === 'Emirati').map(l => [l.name, l.emp_id, l.department_name || '—']), headers: ['Name', 'Emp ID', 'Department'] },
+    totalCourses:     { title: 'Total Courses',     rows: filteredCourses.map(c => [c.title, c.training_type || 'Developmental', c.status]),                  headers: ['Course', 'Training Type', 'Status'] },
+    totalDepts:       { title: 'Total Departments', rows: departments.map(d => [d.name, d.hod || '—', d.learner_count || 0]),                                 headers: ['Department', 'Head', 'Learners'] },
+    emiratiLearners:  { title: 'Emirati Learners',  rows: learners.filter(l => l.nationality === 'Emirati').map(l => [l.name, l.emp_id, l.department_name || '—']), headers: ['Name', 'Emp ID', 'Department'] },
   };
 
   const openDrillDown = (key) => {
@@ -165,11 +135,16 @@ function ReportsPage() {
   return (
     <div style={styles.page}>
 
+      {/* ── READ ONLY BANNER FOR HOD ── */}
+      {isHod && (
+        <div style={styles.hodBanner}>
+          👁 You are viewing your department's reports in read-only mode.
+        </div>
+      )}
+
       {/* ── HEADER ── */}
       <div style={styles.pageHeader}>
-        <div style={{ fontSize: '20px', fontWeight: '700', color: '#051c2c' }}>
-          Reports
-        </div>
+        <div style={{ fontSize: '20px', fontWeight: '700', color: '#051c2c' }}>Reports</div>
         <div style={styles.headerControls}>
           <div style={styles.dateFilterPair}>
             <span style={{ fontSize: '11px', color: '#5a6878', fontWeight: '600' }}>From</span>
@@ -183,19 +158,19 @@ function ReportsPage() {
         </div>
       </div>
 
-      {/* ── ROW 1: PRIMARY STAT CARDS (clickable) ── */}
+      {/* ── ROW 1: PRIMARY STAT CARDS ── */}
       <div style={styles.statGrid}>
-        <StatCard icon="🎓" num={stats.totalLearners} label="Total Learners" color="#051C2C" onClick={() => openDrillDown('totalLearners')} />
-        <StatCard icon="✅" num={stats.activeLearners} label="Active Learners" color="#7a9e7a" onClick={() => openDrillDown('activeLearners')} />
+        <StatCard icon="🎓" num={stats.totalLearners}    label="Total Learners"    color="#051C2C" onClick={() => openDrillDown('totalLearners')} />
+        <StatCard icon="✅" num={stats.activeLearners}   label="Active Learners"   color="#A5C8D2" onClick={() => openDrillDown('activeLearners')} textDark />
         <StatCard icon="⛔" num={stats.inactiveLearners} label="Inactive Learners" color="#AF5F46" onClick={() => openDrillDown('inactiveLearners')} />
-        <StatCard icon="📚" num={stats.totalCourses} label="Total Courses" color="#6a9ea8" onClick={() => openDrillDown('totalCourses')} />
+        <StatCard icon="📚" num={stats.totalCourses}     label="Total Courses"     color="#BEC8BE" onClick={() => openDrillDown('totalCourses')} textDark />
       </div>
 
       <div style={styles.statGrid}>
-        <StatCard icon="📝" num={stats.totalEnrolled} label="Enrolled" color="#0369a1" sub="assigned to a course" />
-        <StatCard icon="🎯" num={stats.totalAttended} label="Attended" color="#15803d" sub="completed training" />
-        <StatCard icon="📊" num={stats.participationRate + '%'} label="Participation Rate" color="#a16207" sub="attended ÷ enrolled" />
-        <StatCard icon="⏱️" num={stats.totalTrainingHours + 'h'} label="Total Training Hours" color="#7c3aed" />
+        <StatCard icon="📝" num={stats.totalEnrolled}        label="Enrolled"              color="#051C2C" sub="assigned to a course" />
+        <StatCard icon="🎯" num={stats.totalAttended}        label="Attended"              color="#A5C8D2" sub="completed training" textDark />
+        <StatCard icon="📊" num={stats.participationRate + '%'} label="Participation Rate" color="#AF5F46" sub="attended ÷ enrolled" />
+        <StatCard icon="⏱️" num={stats.totalTrainingHours + 'h'} label="Total Training Hours" color="#BEC8BE" textDark />
       </div>
 
       {/* ── ROW 2 ── */}
@@ -204,18 +179,13 @@ function ReportsPage() {
         <div style={styles.card}>
           <div style={styles.cardTitle}>Emirati Learners</div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
-            <button
-              onClick={() => openDrillDown('emiratiLearners')}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-            >
-              <div style={{ position: 'relative', width: '130px', height: '130px' }}>
+            <button onClick={() => openDrillDown('emiratiLearners')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+              <div style={{ position: 'relative' }}>
                 <svg viewBox="0 0 130 130" style={{ width: '130px', height: '130px', transform: 'rotate(-90deg)' }}>
                   <circle cx="65" cy="65" r="54" fill="none" stroke="#e8ecf0" strokeWidth="12" />
-                  <circle
-                    cx="65" cy="65" r="54" fill="none" stroke="#051c2c" strokeWidth="12"
+                  <circle cx="65" cy="65" r="54" fill="none" stroke="#051c2c" strokeWidth="12"
                     strokeDasharray={`${2 * Math.PI * 54 * (stats.totalLearners > 0 ? stats.emiratiLearners / stats.totalLearners : 0)} ${2 * Math.PI * 54}`}
-                    strokeLinecap="round"
-                  />
+                    strokeLinecap="round" />
                 </svg>
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <span style={{ fontSize: '26px', fontWeight: '800', color: '#051c2c' }}>{stats.emiratiLearners}</span>
@@ -234,11 +204,7 @@ function ReportsPage() {
             {stats.totalCourses}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {[
-              ['Completed', stats.completedCourses, '#051c2c'],
-              ['Ongoing',   stats.ongoingCourses,   '#5a6878'],
-              ['Pending',   stats.pendingCourses,   '#b6bdc2'],
-            ].map(([l, v, c]) => (
+            {[['Completed', stats.completedCourses, '#051c2c'], ['Ongoing', stats.ongoingCourses, '#5a6878'], ['Pending', stats.pendingCourses, '#b6bdc2']].map(([l, v, c]) => (
               <div key={l} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: c, flexShrink: 0 }} />
                 <span style={{ fontSize: '12px', color: '#5a6878', flex: 1 }}>{l}</span>
@@ -254,19 +220,13 @@ function ReportsPage() {
             <div style={{ position: 'relative', width: '110px', height: '110px' }}>
               <svg viewBox="0 0 110 110" style={{ width: '110px', height: '110px', transform: 'rotate(-90deg)' }}>
                 <circle cx="55" cy="55" r="46" fill="none" stroke="#e8ecf0" strokeWidth="10" />
-                <circle
-                  cx="55" cy="55" r="46" fill="none" stroke="#051c2c" strokeWidth="10"
+                <circle cx="55" cy="55" r="46" fill="none" stroke="#051c2c" strokeWidth="10"
                   strokeDasharray={`${2 * Math.PI * 46 * stats.overallSatisfaction / 100} ${2 * Math.PI * 46}`}
-                  strokeLinecap="round"
-                />
+                  strokeLinecap="round" />
               </svg>
               <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontSize: '20px', fontWeight: '800', color: '#051c2c', lineHeight: 1 }}>
-                  {stats.overallSatisfaction}%
-                </span>
-                <span style={{ fontSize: '12px', color: '#c8973a', marginTop: '2px' }}>
-                  {'★'.repeat(Math.round(stats.overallSatisfaction / 20))}
-                </span>
+                <span style={{ fontSize: '20px', fontWeight: '800', color: '#051c2c', lineHeight: 1 }}>{stats.overallSatisfaction}%</span>
+                <span style={{ fontSize: '12px', color: '#c8973a', marginTop: '2px' }}>{'★'.repeat(Math.round(stats.overallSatisfaction / 20))}</span>
               </div>
             </div>
             <div style={{ fontSize: '11px', color: '#9baabb' }}>Avg of all rated courses in range</div>
@@ -274,11 +234,10 @@ function ReportsPage() {
         </div>
 
         <div style={styles.card}>
-          <button
-            onClick={() => openDrillDown('totalDepts')}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: '100%', textAlign: 'left' }}
-          >
-            <div style={styles.cardTitle}>Total Departments</div>
+          <button onClick={() => openDrillDown('totalDepts')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: '100%', textAlign: 'left' }}>
+            <div style={styles.cardTitle}>
+              {isHod ? 'My Department' : 'Total Departments'}
+            </div>
             <div style={{ fontSize: '32px', fontWeight: '800', color: '#051c2c', lineHeight: 1, marginBottom: '8px' }}>
               {stats.totalDepts}
             </div>
@@ -286,12 +245,8 @@ function ReportsPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '90px', overflowY: 'auto' }}>
             {departments.slice(0, 4).map(d => (
               <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
-                <span style={{ color: '#5a6878', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
-                  {d.name}
-                </span>
-                <span style={{ color: '#051c2c', fontWeight: '700', flexShrink: 0 }}>
-                  {d.learner_count || 0}
-                </span>
+                <span style={{ color: '#5a6878', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>{d.name}</span>
+                <span style={{ color: '#051c2c', fontWeight: '700', flexShrink: 0 }}>{d.learner_count || 0}</span>
               </div>
             ))}
           </div>
@@ -299,40 +254,25 @@ function ReportsPage() {
 
       </div>
 
-      {/* ── ROW 3: MOST ACTIVE DEPARTMENTS + SATISFACTION TREND ── */}
+      {/* ── ROW 3 ── */}
       <div style={styles.row3}>
 
         <div style={styles.card}>
-          <div style={styles.cardTitle}>Most Active Departments</div>
-          <div style={{ fontSize: '10px', color: '#9baabb', marginBottom: '12px' }}>
-            Sorted by attended courses
+          <div style={styles.cardTitle}>
+            {isHod ? 'My Department Activity' : 'Most Active Departments'}
           </div>
+          <div style={{ fontSize: '10px', color: '#9baabb', marginBottom: '12px' }}>Sorted by attended courses</div>
           {mostActiveDepartments.slice(0, 6).map((d, i) => (
-            <div key={d.id} style={{
-              display: 'flex', alignItems: 'center', gap: '10px',
-              padding: '9px 0', borderBottom: '1px solid #f0f2f4',
-            }}>
-              <span style={{
-                width: '22px', height: '22px', borderRadius: '50%',
-                background: i === 0 ? '#fef9c3' : '#f2f4f6',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '11px', fontWeight: '700',
-                color: i === 0 ? '#a16207' : '#5a6878', flexShrink: 0,
-              }}>
+            <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 0', borderBottom: '1px solid #f0f2f4' }}>
+              <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: i === 0 ? '#fef9c3' : '#f2f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '700', color: i === 0 ? '#a16207' : '#5a6878', flexShrink: 0 }}>
                 {i + 1}
               </span>
-              <span style={{ fontSize: '13px', fontWeight: '500', color: '#051c2c', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {d.name}
-              </span>
-              <span style={{ fontSize: '11px', fontWeight: '700', color: '#15803d' }}>
-                {d.attended_count} attended
-              </span>
+              <span style={{ fontSize: '13px', fontWeight: '500', color: '#051c2c', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.name}</span>
+              <span style={{ fontSize: '11px', fontWeight: '700', color: '#15803d' }}>{d.attended_count} attended</span>
             </div>
           ))}
           {mostActiveDepartments.length === 0 && (
-            <div style={{ padding: '20px', textAlign: 'center', color: '#9baabb', fontSize: '13px' }}>
-              No department activity in this range.
-            </div>
+            <div style={{ padding: '20px', textAlign: 'center', color: '#9baabb', fontSize: '13px' }}>No department activity in this range.</div>
           )}
         </div>
 
@@ -366,9 +306,7 @@ function ReportsPage() {
                   <thead>
                     <tr style={{ background: '#f8f9fa', borderBottom: '1px solid #e8ecf0' }}>
                       {drillDown.headers.map(h => (
-                        <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10px', fontWeight: '700', color: '#9baabb', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                          {h}
-                        </th>
+                        <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10px', fontWeight: '700', color: '#9baabb', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -376,18 +314,14 @@ function ReportsPage() {
                     {drillDown.rows.map((row, i) => (
                       <tr key={i} style={{ borderBottom: '1px solid #f0f2f4' }}>
                         {row.map((cell, j) => (
-                          <td key={j} style={{ padding: '9px 12px', fontSize: '13px', color: '#051c2c' }}>
-                            {cell}
-                          </td>
+                          <td key={j} style={{ padding: '9px 12px', fontSize: '13px', color: '#051c2c' }}>{cell}</td>
                         ))}
                       </tr>
                     ))}
                   </tbody>
                 </table>
                 {drillDown.rows.length === 0 && (
-                  <div style={{ padding: '30px', textAlign: 'center', color: '#9baabb', fontSize: '13px' }}>
-                    No records found.
-                  </div>
+                  <div style={{ padding: '30px', textAlign: 'center', color: '#9baabb', fontSize: '13px' }}>No records found.</div>
                 )}
               </div>
             </div>
@@ -402,62 +336,38 @@ function ReportsPage() {
   );
 }
 
-function StatCard({ icon, num, label, color, sub, onClick }) {
+function StatCard({ icon, num, label, color, sub, onClick, textDark }) {
   const Wrapper = onClick ? 'button' : 'div';
   return (
-    <Wrapper
-      onClick={onClick}
-      style={{
-        background: color, borderRadius: '14px', padding: '18px 20px',
-        display: 'flex', flexDirection: 'column', gap: '6px',
-        border: 'none', cursor: onClick ? 'pointer' : 'default',
-        textAlign: 'left', fontFamily: 'Inter, sans-serif', width: '100%',
-      }}
-    >
+    <Wrapper onClick={onClick} style={{ background: color, borderRadius: '14px', padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '6px', border: 'none', cursor: onClick ? 'pointer' : 'default', textAlign: 'left', fontFamily: 'Inter, sans-serif', width: '100%' }}>
       <div style={{ fontSize: '20px', marginBottom: '2px' }}>{icon}</div>
-      <div style={{ fontSize: '30px', fontWeight: '800', color: '#ffffff', lineHeight: 1, letterSpacing: '-1px' }}>
-        {num}
-      </div>
-      <div style={{ fontSize: '12.5px', color: 'rgba(255,255,255,0.8)', fontWeight: '500' }}>
-        {label}
-      </div>
-      {sub && (
-        <div style={{ fontSize: '10.5px', color: 'rgba(255,255,255,0.55)' }}>{sub}</div>
-      )}
-      {onClick && (
-        <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>
-          Click to view details →
-        </div>
-      )}
+      <div style={{ fontSize: '30px', fontWeight: '800', color: textDark ? '#051C2C' : '#ffffff', lineHeight: 1, letterSpacing: '-1px' }}>{num}</div>
+      <div style={{ fontSize: '12.5px', color: textDark ? '#1f3a45' : 'rgba(255,255,255,0.8)', fontWeight: '500' }}>{label}</div>
+      {sub && <div style={{ fontSize: '10.5px', color: textDark ? '#3a5560' : 'rgba(255,255,255,0.55)' }}>{sub}</div>}
+      {onClick && <div style={{ fontSize: '10px', color: textDark ? '#3a5560' : 'rgba(255,255,255,0.5)', marginTop: '2px' }}>Click to view details →</div>}
     </Wrapper>
   );
 }
 
 function MiniLineChart({ data }) {
-  const max = 100;
   const points = data.map((d, i) => {
     const x = (i / (data.length - 1)) * 100;
-    const y = 100 - (d.score / max) * 100;
+    const y = 100 - (d.score / 100) * 100;
     return `${x},${y}`;
   }).join(' ');
-
   return (
     <div>
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '180px' }}>
         <polyline points={points} fill="none" stroke="#051c2c" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
         {data.map((d, i) => {
           const x = (i / (data.length - 1)) * 100;
-          const y = 100 - (d.score / max) * 100;
-          return d.score > 0 ? (
-            <circle key={i} cx={x} cy={y} r="1.6" fill="#051c2c" vectorEffect="non-scaling-stroke" />
-          ) : null;
+          const y = 100 - (d.score / 100) * 100;
+          return d.score > 0 ? <circle key={i} cx={x} cy={y} r="1.6" fill="#051c2c" vectorEffect="non-scaling-stroke" /> : null;
         })}
       </svg>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
         {data.map((d, i) => (
-          <span key={i} style={{ fontSize: '10px', color: '#9baabb', flex: 1, textAlign: 'center' }}>
-            {d.month || d.quarter}
-          </span>
+          <span key={i} style={{ fontSize: '10px', color: '#9baabb', flex: 1, textAlign: 'center' }}>{d.month || d.quarter}</span>
         ))}
       </div>
     </div>
@@ -466,6 +376,7 @@ function MiniLineChart({ data }) {
 
 const styles = {
   page:           { padding: '30px', minHeight: '100vh', background: '#f2f4f6', fontFamily: 'Inter, sans-serif' },
+  hodBanner:      { background: '#fef9c3', border: '1px solid #fde68a', color: '#92400e', padding: '10px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: '500', marginBottom: '16px' },
   pageHeader:     { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' },
   headerControls: { display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' },
   dateFilterPair: { display: 'flex', alignItems: 'center', gap: '8px', background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '8px', padding: '8px 12px' },
