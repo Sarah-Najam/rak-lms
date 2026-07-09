@@ -108,29 +108,6 @@ function SettingsPage({ user }) {
         )}
       </div>
 
-      {/* ── SYSTEM INFO ── */}
-      <div style={styles.infoGrid}>
-        <div style={styles.infoCard}>
-          <div style={styles.infoLabel}>System</div>
-          <div style={styles.infoValue}>RAK Properties LMS</div>
-          <div style={styles.infoSub}>Learning Management System</div>
-        </div>
-        <div style={styles.infoCard}>
-          <div style={styles.infoLabel}>Frontend</div>
-          <div style={styles.infoValue}>React.js</div>
-          <div style={styles.infoSub}>Deployed on Vercel</div>
-        </div>
-        <div style={styles.infoCard}>
-          <div style={styles.infoLabel}>Backend</div>
-          <div style={styles.infoValue}>Node.js / Express</div>
-          <div style={styles.infoSub}>Deployed on Render</div>
-        </div>
-        <div style={styles.infoCard}>
-          <div style={styles.infoLabel}>Database</div>
-          <div style={styles.infoValue}>PostgreSQL</div>
-          <div style={styles.infoSub}>Hosted on Neon.tech</div>
-        </div>
-      </div>
 
       {/* ── USERS TABLE ── */}
       <div style={styles.section}>
