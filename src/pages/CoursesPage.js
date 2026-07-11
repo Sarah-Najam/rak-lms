@@ -541,8 +541,31 @@ function CoursesPage({ user }) {
               <button style={styles.modalClose} onClick={() => { setSelected(null); setProfileLearner(null); setDeptFilter(''); }}>×</button>
             </div>
             <div style={styles.modalBody}>
-              <div style={styles.coverImg}><div style={{ fontSize: '40px' }}>📚</div></div>
-
+<div style={styles.coverImg}>
+                {selected.course_photo
+                  ? <img src={selected.course_photo} alt={selected.title}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '10px' }} />
+                  : <div style={{ fontSize: '40px' }}>📚</div>
+                }
+                {!isHod && (
+                  <label style={{ position: 'absolute', bottom: '8px', right: '8px', background: '#051c2c', color: '#ffffff', padding: '5px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}>
+                    📷 Change Photo
+                    <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
+                      onChange={async (e) => {
+                        const file = e.target.files[0];
+                        if (!file) return;
+                        const result = await api.uploadCoursePhoto(selected.id, file);
+                        if (result.url) {
+                          setSelected(prev => ({ ...prev, course_photo: result.url }));
+                          loadCourses();
+                        } else {
+                          alert(result.error || 'Upload failed.');
+                        }
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
               <div style={styles.infoBar}>
                 {[
                   ['Start Date',           fmtDate(selected.start_date)],
@@ -1022,8 +1045,7 @@ const styles = {
   modalFooter:          { padding: '14px 24px', borderTop: '1px solid #e8ecf0', display: 'flex', justifyContent: 'flex-end', gap: '8px', flexWrap: 'wrap' },
   cancelBtn:            { padding: '9px 16px', background: 'none', border: '1.5px solid #e8ecf0', borderRadius: '8px', fontSize: '12.5px', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
   saveBtn:              { padding: '9px 20px', background: '#051c2c', border: 'none', borderRadius: '8px', fontSize: '12.5px', fontWeight: '600', cursor: 'pointer', color: '#ffffff', fontFamily: 'Inter, sans-serif' },
-  coverImg:             { width: '100%', height: '100px', background: '#f2f4f6', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' },
-  infoBar:              { display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '8px', background: '#f8f9fa', borderRadius: '10px', padding: '14px', marginBottom: '16px', border: '1px solid #e8ecf0' },
+coverImg: { width: '100%', height: '100px', background: '#f2f4f6', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px', position: 'relative', overflow: 'hidden' },  infoBar:              { display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '8px', background: '#f8f9fa', borderRadius: '10px', padding: '14px', marginBottom: '16px', border: '1px solid #e8ecf0' },
   infoBarItem:          { textAlign: 'center' },
   infoBarLabel:         { fontSize: '9px', color: '#9baabb', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '4px' },
   infoBarValue:         { fontSize: '13px', fontWeight: '700', color: '#051c2c' },

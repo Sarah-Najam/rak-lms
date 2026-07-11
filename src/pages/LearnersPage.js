@@ -209,7 +209,26 @@ function LearnersPage({ user }) {
       alert('Error updating enrollment.');
     }
   };
-
+const handlePhotoUpload = async (learnerId, file) => {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File too large. Maximum size is 5MB.');
+      return;
+    }
+    try {
+      const result = await api.uploadLearnerPhoto(learnerId, file);
+      if (result.url) {
+        loadLearners();
+        if (selected && selected.id === learnerId) {
+          setSelected(prev => ({ ...prev, profile_photo: result.url }));
+        }
+      } else {
+        alert(result.error || 'Upload failed.');
+      }
+    } catch (err) {
+      alert('Error uploading photo.');
+    }
+  };
   const handleToggleStatus = async (learner) => {
     const newStatus = learner.status === 'Active' ? 'Resigned/Terminated' : 'Active';
     try {
@@ -398,7 +417,11 @@ function LearnersPage({ user }) {
                     <td style={{ ...styles.td, minWidth: '180px' }}>
                       <div style={styles.nameCell}>
                         <div style={styles.avatar}>
-                          {learner.name.split(' ').slice(0,2).map(w => w[0]).join('')}
+                          {learner.profile_photo
+                            ? <img src={learner.profile_photo} alt={learner.name}
+                                style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                            : learner.name.split(' ').slice(0,2).map(w => w[0]).join('')
+                          }
                         </div>
                         <button style={styles.learnerNameBtn} onClick={() => openProfile(learner)}>
                           {learner.name}
@@ -490,7 +513,9 @@ function LearnersPage({ user }) {
             </div>
             <div style={styles.modalBody}>
               <div style={styles.photoUpload}>
-                <div style={styles.photoPlaceholder}>🖼</div>
+                <div style={{ fontSize: '11px', color: '#9baabb', textAlign: 'center' }}>
+                  Photo can be added after saving the learner.
+                </div>
               </div>
               <div style={styles.formGrid}>
                 <FormField label="Emp ID *"     value={form.empId}        onChange={v => setForm({...form, empId: v})}        placeholder="e.g. RAK-006" />
@@ -581,9 +606,22 @@ function LearnersPage({ user }) {
             </div>
             <div style={styles.modalBody}>
               <div style={styles.profileHeader}>
+                <div style={{ position: 'relative', flexShrink: 0 }}>
                 <div style={styles.profileAvatar}>
-                  {selected.name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase()}
+                  {selected.profile_photo
+                    ? <img src={selected.profile_photo} alt={selected.name}
+                        style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                    : selected.name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase()
+                  }
                 </div>
+                {!isHod && (
+                  <label style={styles.photoUploadBtn} title="Upload photo">
+                    📷
+                    <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
+                      onChange={e => handlePhotoUpload(selected.id, e.target.files[0])} />
+                  </label>
+                )}
+              </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '18px', fontWeight: '700', color: '#051c2c' }}>
                     {selected.name}
@@ -923,6 +961,7 @@ const styles = {
   profileInfoValue: { fontSize: '13px', fontWeight: '500', color: '#051c2c' },
   trainingStats:    { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '20px' },
   trainingStat:     { background: '#f8f9fa', borderRadius: '10px', padding: '14px', textAlign: 'center', border: '1px solid #e8ecf0' },
+  photoUploadBtn:   { position: 'absolute', bottom: 0, right: 0, width: '22px', height: '22px', borderRadius: '50%', background: '#051c2c', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', cursor: 'pointer', border: '2px solid #ffffff' },
   sectionLabel:     { fontSize: '12px', fontWeight: '700', color: '#051c2c', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px', paddingBottom: '8px', borderBottom: '1px solid #e8ecf0' },
 };
 

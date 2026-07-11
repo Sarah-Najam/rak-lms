@@ -241,11 +241,44 @@ const api = {
       body: JSON.stringify({ is_manual, manual_value }),
     }).then(r => r.json()),
 
-  // ── UPLOAD ────────────────────────────────────────────────
+// ── UPLOAD ────────────────────────────────────────────────
   uploadFile: async (file) => {
     const formData = new FormData();
     formData.append('file', file);
     const response = await fetch(`${BASE_URL}/upload`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${getToken()}` },
+      body: formData,
+    });
+    return response.json();
+  },
+
+  uploadLearnerPhoto: async (learnerId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(`${BASE_URL}/upload/learner/${learnerId}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${getToken()}` },
+      body: formData,
+    });
+    return response.json();
+  },
+
+  uploadTrainerPhoto: async (trainerId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(`${BASE_URL}/upload/trainer/${trainerId}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${getToken()}` },
+      body: formData,
+    });
+    return response.json();
+  },
+
+  uploadCoursePhoto: async (courseId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(`${BASE_URL}/upload/course/${courseId}`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${getToken()}` },
       body: formData,
