@@ -9,15 +9,16 @@ const ADMIN_LINKS = [
   { id: 'trainers',    label: 'Trainers',          icon: '◎' },
   { id: 'calendar',    label: 'Training Calendar', icon: '▦' },
   { id: 'reports',     label: 'Reports',           icon: '◧' },
+  { id: 'compliance',  label: 'Compliance',        icon: '✅' },
   { id: 'settings',    label: 'Settings',          icon: '⚙' },
 ];
 
-// HOD sees limited pages — no trainers, departments, settings, calendar
 const HOD_LINKS = [
-  { id: 'dashboard', label: 'Dashboard', icon: '◈' },
-  { id: 'learners',  label: 'Learners',  icon: '◉' },
-  { id: 'courses',   label: 'Courses',   icon: '◫' },
-  { id: 'reports',   label: 'Reports',   icon: '◧' },
+  { id: 'dashboard',  label: 'Dashboard',  icon: '◈' },
+  { id: 'learners',   label: 'Learners',   icon: '◉' },
+  { id: 'courses',    label: 'Courses',    icon: '◫' },
+  { id: 'reports',    label: 'Reports',    icon: '◧' },
+  { id: 'compliance', label: 'Compliance', icon: '✅' },
 ];
 
 function Sidebar({ activePage, onNavigate, user, onLogout }) {

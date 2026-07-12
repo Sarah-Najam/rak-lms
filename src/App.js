@@ -12,11 +12,11 @@ import TrainersPage    from './pages/TrainersPage';
 import CalendarPage    from './pages/CalendarPage';
 import ReportsPage     from './pages/ReportsPage';
 import SettingsPage    from './pages/SettingsPage';
+import CompliancePage  from './pages/CompliancePage';
 import SetPasswordPage from './pages/SetPasswordPage';
 
 // Pages HOD is NOT allowed to access
 const HOD_BLOCKED_PAGES = ['departments', 'trainers', 'calendar', 'settings'];
-
 function App() {
 
   const [currentUser, setCurrentUser] = useState(null);
@@ -86,6 +86,7 @@ function App() {
     calendar:    'Training Calendar',
     reports:     'Reports',
     settings:    'Settings',
+    compliance:  'Mandatory Training Compliance',
   };
 
   const renderPage = () => {
@@ -105,6 +106,7 @@ function App() {
       case 'calendar':    return <CalendarPage     user={currentUser} />;
       case 'reports':     return <ReportsPage      user={currentUser} />;
       case 'settings':    return <SettingsPage     user={currentUser} />;
+      case 'compliance':  return <CompliancePage   user={currentUser} />;
       default:            return <DashboardPage    user={currentUser} />;
     }
   };

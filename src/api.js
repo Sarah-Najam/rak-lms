@@ -293,6 +293,11 @@ forgotPassword: (email) =>
     });
     return response.json();
   },
+  // ── COMPLIANCE ────────────────────────────────────────────
+  getCompliance: (year) =>
+    fetch(`${BASE_URL}/compliance${year ? `?year=${year}` : ''}`, {
+      headers: headers(),
+    }).then(r => r.json()),
 };
 
 export default api;
