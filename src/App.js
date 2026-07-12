@@ -77,6 +77,43 @@ function App() {
       }
     }
   }, []);
+  // ── SESSION TIMEOUT WARNING ──
+React.useEffect(() => {
+  if (!currentUser) return;
+
+  const token = localStorage.getItem('token');
+  if (!token) return;
+
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const expiresAt = payload.exp * 1000;
+    const warningAt = expiresAt - 5 * 60 * 1000; // 5 min before expiry
+    const now = Date.now();
+
+    if (warningAt <= now) return; // already past warning time
+
+    const warningTimeout = setTimeout(() => {
+      const extend = window.confirm(
+        '⚠️ Your session will expire in 5 minutes.\n\nClick OK to stay logged in, or Cancel to log out now.'
+      );
+      if (!extend) {
+        handleLogout();
+      }
+    }, warningAt - now);
+
+    const logoutTimeout = setTimeout(() => {
+      alert('Your session has expired. Please log in again.');
+      handleLogout();
+    }, expiresAt - now);
+
+    return () => {
+      clearTimeout(warningTimeout);
+      clearTimeout(logoutTimeout);
+    };
+  } catch {
+    return;
+  }
+}, [currentUser]);
 
   const pageTitles = {
     dashboard:   'Dashboard',
