@@ -249,6 +249,15 @@ forgotPassword: (email) =>
       body: JSON.stringify({ is_manual, manual_value }),
     }).then(r => r.json()),
 
+    getCourseCheckinInfo: (courseId) =>
+    fetch(`${BASE_URL}/enrollments/course-checkin/${courseId}`).then(r => r.json()),
+
+  submitCourseCheckin: (courseId, empId) =>
+    fetch(`${BASE_URL}/enrollments/course-checkin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ course_id: courseId, emp_id: empId }),
+    }).then(r => r.json()),
 // ── UPLOAD ────────────────────────────────────────────────
   uploadFile: async (file) => {
     const formData = new FormData();

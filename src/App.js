@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Sidebar         from './components/Sidebar';
 import CheckinPage     from './pages/CheckinPage';
+import CourseCheckinPage from './pages/CourseCheckinPage';
 import FeedbackPage    from './pages/FeedbackPage';
 import Topbar          from './components/Topbar';
 import LoginPage       from './pages/LoginPage';
@@ -114,6 +115,10 @@ function App() {
   // ── Check-in page (no login needed) ──
   if (window.location.pathname === '/checkin') {
     return <CheckinPage />;
+  }
+  // ── Course check-in page (no login needed) ──
+  if (window.location.pathname === '/course-checkin') {
+    return <CourseCheckinPage />;
   }
 
   // ── Feedback page (no login needed) ──

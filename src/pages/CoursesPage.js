@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import api from '../api';
 import Pagination from '../components/Pagination';
 
@@ -34,6 +35,7 @@ function CoursesPage({ user }) {
   const [mandCollapsed,    setMandCollapsed]    = useState(true);
   const [deptCourseIds,    setDeptCourseIds]    = useState(null);
   const [deptFilterLoading,setDeptFilterLoading]= useState(false);
+  const [qrPopup,          setQrPopup]          = useState(null);
 
   const emptyForm = {
     title: '', description: '', duration: '', institute: '',
@@ -262,7 +264,7 @@ function CoursesPage({ user }) {
     return <span style={{ background: c.bg, color: c.color, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600' }}>{status}</span>;
   };
 
-const TrainingTypeIcon = ({ type }) => (
+  const TrainingTypeIcon = ({ type }) => (
     <div title={type === 'Mandatory' ? 'Mandatory' : 'Developmental'}
       style={{
         width: '32px', height: '32px', borderRadius: '8px',
@@ -305,10 +307,7 @@ const TrainingTypeIcon = ({ type }) => (
         }}>{course.status}</span>
         <span style={{ fontSize: '11px', color: '#9baabb' }}>{course.type || 'External'}</span>
       </div>
-      <div style={styles.upcomingCardTitle}>
-        <TrainingTypeIcon type={course.training_type || 'Developmental'} />
-        {course.title}
-      </div>
+      <div style={styles.upcomingCardTitle}>{course.title}</div>
       <div style={styles.upcomingCardMeta}>
         <div style={styles.upcomingMetaItem}>
           <span style={styles.upcomingMetaIcon}>👤</span>
@@ -325,10 +324,11 @@ const TrainingTypeIcon = ({ type }) => (
     </div>
   );
 
+  const qrUrl = qrPopup ? `${window.location.origin}/course-checkin?course=${qrPopup.id}` : '';
+
   return (
     <div style={styles.page}>
 
-      {/* ── READ ONLY BANNER FOR HOD ── */}
       {isHod && (
         <div style={styles.hodBanner}>
           👁 You are viewing your department's courses in read-only mode.
@@ -340,7 +340,12 @@ const TrainingTypeIcon = ({ type }) => (
         <div style={styles.statCard}><div style={styles.statIcon}>📚</div><div style={styles.statNum}>{totalCourses}</div><div style={styles.statLbl}>Total Courses</div><div style={styles.statSub}>Including active, completed</div></div>
         <div style={styles.statCard}><div style={styles.statIcon}>⏳</div><div style={styles.statNum}>{ongoingCourses}</div><div style={styles.statLbl}>Ongoing Courses</div><div style={styles.statSub}>{ongoingCourses} in session now</div></div>
         <div style={styles.statCard}><div style={styles.statIcon}>✅</div><div style={styles.statNum}>{completedCourses}</div><div style={styles.statLbl}>Completed Courses</div><div style={styles.statSub}>&nbsp;</div></div>
-        <div style={styles.statCard}><div style={styles.statIcon}>📅</div><div style={styles.statNum}>{upcomingDevelopmental.length + upcomingMandatory.length}</div><div style={styles.statLbl}>Upcoming Courses</div><div style={styles.statSub}>▲ {upcomingDevelopmental.length} Dev · ■ {upcomingMandatory.length} Mandatory</div></div>
+        <div style={styles.statCard}><div style={styles.statIcon}>📅</div><div style={styles.statNum}>{upcomingDevelopmental.length + upcomingMandatory.length}</div><div style={styles.statLbl}>Upcoming Courses</div>
+          <div style={styles.statSub}>
+            <span style={{ color: '#AF5F46', fontWeight: '700' }}>▲</span> {upcomingDevelopmental.length} Dev ·
+            <span style={{ color: '#5a8060', fontWeight: '700' }}> ■</span> {upcomingMandatory.length} Mandatory
+          </div>
+        </div>
         <div style={styles.statCard}><div style={styles.statIcon}>👥</div><div style={styles.statNum}>{avgParticipation}%</div><div style={styles.statLbl}>Participation Rate</div><div style={styles.statSub}>Attended ÷ Enrolled</div></div>
       </div>
 
@@ -348,7 +353,7 @@ const TrainingTypeIcon = ({ type }) => (
       <div style={styles.upcomingSplitGrid}>
         <div style={styles.upcomingSection}>
           <button style={styles.collapseHeader} onClick={() => setDevCollapsed(!devCollapsed)}>
-            <span style={styles.upcomingTitle}>▲ Upcoming Developmental Courses</span>
+            <span style={styles.upcomingTitle}><span style={{ color: '#AF5F46' }}>▲</span> Upcoming Developmental Courses</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '12px', color: '#9baabb' }}>{upcomingDevelopmental.length}</span>
               <span style={{ fontSize: '12px', color: '#5a6878' }}>{devCollapsed ? '▼' : '▲'}</span>
@@ -362,7 +367,7 @@ const TrainingTypeIcon = ({ type }) => (
         </div>
         <div style={{ ...styles.upcomingSection, borderColor: '#bfdbfe' }}>
           <button style={styles.collapseHeader} onClick={() => setMandCollapsed(!mandCollapsed)}>
-            <span style={styles.upcomingTitle}>■ Upcoming Mandatory Courses</span>
+            <span style={styles.upcomingTitle}><span style={{ color: '#5a8060' }}>■</span> Upcoming Mandatory Courses</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '12px', color: '#9baabb' }}>{upcomingMandatory.length}</span>
               <span style={{ fontSize: '12px', color: '#5a6878' }}>{mandCollapsed ? '▼' : '▲'}</span>
@@ -392,9 +397,9 @@ const TrainingTypeIcon = ({ type }) => (
           )}
           {deptFilterLoading && <span style={{ fontSize: '11px', color: '#9baabb' }}>Filtering...</span>}
           <div style={styles.dateFilterPair}>
-            <input type="date" value={filterStartDate} onChange={e => { setFilterStartDate(e.target.value); setCurrentPage(1); }} style={styles.dateInputSmall} title="Filter from date" />
+            <input type="date" value={filterStartDate} onChange={e => { setFilterStartDate(e.target.value); setCurrentPage(1); }} style={styles.dateInputSmall} />
             <span style={{ fontSize: '12px', color: '#9baabb' }}>to</span>
-            <input type="date" value={filterEndDate} onChange={e => { setFilterEndDate(e.target.value); setCurrentPage(1); }} style={styles.dateInputSmall} title="Filter to date" />
+            <input type="date" value={filterEndDate} onChange={e => { setFilterEndDate(e.target.value); setCurrentPage(1); }} style={styles.dateInputSmall} />
           </div>
           {(filterDeptId || filterStartDate || filterEndDate) && (
             <button onClick={() => { setFilterDeptId(''); setFilterStartDate(''); setFilterEndDate(''); setCurrentPage(1); }} style={styles.clearFilterBtn}>
@@ -402,10 +407,7 @@ const TrainingTypeIcon = ({ type }) => (
             </button>
           )}
         </div>
-        {/* HOD cannot add courses */}
-        {!isHod && (
-          <button style={styles.addBtn} onClick={() => setShowAdd(true)}>Add Course</button>
-        )}
+        {!isHod && <button style={styles.addBtn} onClick={() => setShowAdd(true)}>Add Course</button>}
       </div>
 
       {/* ── TABLE ── */}
@@ -415,14 +417,15 @@ const TrainingTypeIcon = ({ type }) => (
         <div style={styles.tableWrap}>
           <div style={styles.tableTitle}>
             Courses
-<span style={{ fontSize: '11px', fontWeight: '400', marginLeft: '10px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-  <span style={{ color: '#AF5F46', fontWeight: '900', fontSize: '14px' }}>▲</span>
-  <span style={{ color: '#5a6878' }}>Developmental</span>
-  <span style={{ color: '#5a8060', fontWeight: '900', fontSize: '14px', marginLeft: '8px' }}>■</span>
-  <span style={{ color: '#5a6878' }}>Mandatory</span>
-</span>         </div>
+            <span style={{ fontSize: '11px', fontWeight: '400', marginLeft: '10px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ color: '#AF5F46', fontWeight: '900', fontSize: '14px' }}>▲</span>
+              <span style={{ color: '#5a6878' }}>Developmental</span>
+              <span style={{ color: '#5a8060', fontWeight: '900', fontSize: '14px', marginLeft: '8px' }}>■</span>
+              <span style={{ color: '#5a6878' }}>Mandatory</span>
+            </span>
+          </div>
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ ...styles.table, minWidth: '1080px' }}>
+            <table style={{ ...styles.table, minWidth: '1100px' }}>
               <thead>
                 <tr style={styles.theadRow}>
                   {['No.', '', 'Name', 'Institute', 'Trainer', 'Start Date', 'End Date',
@@ -442,7 +445,7 @@ const TrainingTypeIcon = ({ type }) => (
                   const attRate    = enrolled > 0 ? Math.round(attended / enrolled * 100) + '%' : '—';
                   return (
                     <tr key={course.id} style={styles.tr}>
-                     <td style={styles.td}>{(currentPage - 1) * ITEMS_PER_PAGE + i + 1}</td>
+                      <td style={styles.td}>{(currentPage - 1) * ITEMS_PER_PAGE + i + 1}</td>
                       <td style={{ ...styles.td, width: '48px', padding: '8px 6px', textAlign: 'center' }}>
                         <TrainingTypeIcon type={course.training_type || 'Developmental'} />
                       </td>
@@ -477,14 +480,13 @@ const TrainingTypeIcon = ({ type }) => (
                       <td style={{ ...styles.td, fontWeight: 600 }}>{totalHours > 0 ? totalHours + 'h' : '—'}</td>
                       <td style={styles.td}>
                         <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                          onClick={() => openFeedbackPopup(course)} title="View feedback / satisfaction details">
+                          onClick={() => openFeedbackPopup(course)}>
                           {+course.stars > 0
                             ? <Stars value={course.stars} showPct={true} />
                             : <span style={{ color: '#9baabb', fontSize: '12px', textDecoration: 'underline' }}>Rate now</span>
                           }
                         </button>
                       </td>
-                      {/* HOD sees no action buttons */}
                       {!isHod && (
                         <td style={{ ...styles.td, whiteSpace: 'nowrap' }}>
                           <div style={{ display: 'flex', gap: '6px' }}>
@@ -508,7 +510,7 @@ const TrainingTypeIcon = ({ type }) => (
         </div>
       )}
 
-      {/* ── ADD COURSE MODAL — admin only ── */}
+      {/* ── ADD COURSE MODAL ── */}
       {showAdd && !isHod && (
         <div style={styles.overlay} onClick={() => setShowAdd(false)}>
           <div style={styles.modal} onClick={e => e.stopPropagation()}>
@@ -525,7 +527,7 @@ const TrainingTypeIcon = ({ type }) => (
         </div>
       )}
 
-      {/* ── EDIT COURSE MODAL — admin only ── */}
+      {/* ── EDIT COURSE MODAL ── */}
       {editCourse && !isHod && (
         <div style={styles.overlay} onClick={() => setEditCourse(null)}>
           <div style={styles.modal} onClick={e => e.stopPropagation()}>
@@ -548,18 +550,21 @@ const TrainingTypeIcon = ({ type }) => (
           <div style={{ ...styles.modal, maxWidth: '860px' }} onClick={e => e.stopPropagation()}>
             <div style={styles.modalHeader}>
               <div>
-                <span style={styles.modalTitle}>
+                <span style={styles.modalTitle}>{selected.title}</span>
+                <div style={{ marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <TrainingTypeIcon type={selected.training_type || 'Developmental'} />
-                  {selected.title}
-                </span>
+                  <span style={{ fontSize: '12px', color: '#5a6878' }}>
+                    {selected.training_type || 'Developmental'}
+                  </span>
+                </div>
               </div>
               <button style={styles.modalClose} onClick={() => { setSelected(null); setProfileLearner(null); setDeptFilter(''); }}>×</button>
             </div>
             <div style={styles.modalBody}>
-<div style={styles.coverImg}>
+
+              <div style={styles.coverImg}>
                 {selected.course_photo
-                  ? <img src={selected.course_photo} alt={selected.title}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '10px' }} />
+                  ? <img src={selected.course_photo} alt={selected.title} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '10px' }} />
                   : <div style={{ fontSize: '40px' }}>📚</div>
                 }
                 {!isHod && (
@@ -570,27 +575,23 @@ const TrainingTypeIcon = ({ type }) => (
                         const file = e.target.files[0];
                         if (!file) return;
                         const result = await api.uploadCoursePhoto(selected.id, file);
-                        if (result.url) {
-                          setSelected(prev => ({ ...prev, course_photo: result.url }));
-                          loadCourses();
-                        } else {
-                          alert(result.error || 'Upload failed.');
-                        }
-                      }}
-                    />
+                        if (result.url) { setSelected(prev => ({ ...prev, course_photo: result.url })); loadCourses(); }
+                        else alert(result.error || 'Upload failed.');
+                      }} />
                   </label>
                 )}
               </div>
+
               <div style={styles.infoBar}>
                 {[
-                  ['Start Date',           fmtDate(selected.start_date)],
-                  ['End Date',             fmtDate(selected.end_date)],
-                  ['Training Hours',       (selected.duration_hours || 0) + 'h'],
-                  ['Enrolled',             selected.enrolled_count || 0],
-                  ['Attended',             selected.attended_count || 0],
-                  ['Participation Rate',   selected.enrolled_count > 0 ? Math.round((+selected.attended_count || 0) / (+selected.enrolled_count) * 100) + '%' : '—'],
+                  ['Start Date', fmtDate(selected.start_date)],
+                  ['End Date', fmtDate(selected.end_date)],
+                  ['Training Hours', (selected.duration_hours || 0) + 'h'],
+                  ['Enrolled', selected.enrolled_count || 0],
+                  ['Attended', selected.attended_count || 0],
+                  ['Participation Rate', selected.enrolled_count > 0 ? Math.round((+selected.attended_count || 0) / (+selected.enrolled_count) * 100) + '%' : '—'],
                   ['Total Learning Hours', ((+selected.duration_hours || 0) * (+selected.attended_count || 0)) + 'h'],
-                  ['Status',               selected.status],
+                  ['Status', selected.status],
                 ].map(([k, v]) => (
                   <div key={k} style={styles.infoBarItem}>
                     <div style={styles.infoBarLabel}>{k}</div>
@@ -613,16 +614,16 @@ const TrainingTypeIcon = ({ type }) => (
 
               <div style={styles.detailGrid}>
                 {[
-                  ['Description',     selected.description || '—'],
-                  ['Duration',        (selected.duration_days || '—') + ' days'],
-                  ['Type',            selected.type || 'External'],
-                  ['Max Learners',    selected.max_learners || '—'],
-                  ['Cost (AED)',      'AED ' + (+selected.cost_estimated || 0).toLocaleString()],
+                  ['Description', selected.description || '—'],
+                  ['Duration', (selected.duration_days || '—') + ' days'],
+                  ['Type', selected.type || 'External'],
+                  ['Max Learners', selected.max_learners || '—'],
+                  ['Cost (AED)', 'AED ' + (+selected.cost_estimated || 0).toLocaleString()],
                   ['Budget Realized', selected.budget_realized ? 'AED ' + (+selected.budget_realized).toLocaleString() : '—'],
-                  ['Venue',           selected.venue || '—'],
-                  ['PO #',            selected.po_number || '—'],
-                  ['PR #',            selected.pr_number || '—'],
-                  ['Institute',       selected.institute || '—'],
+                  ['Venue', selected.venue || '—'],
+                  ['PO #', selected.po_number || '—'],
+                  ['PR #', selected.pr_number || '—'],
+                  ['Institute', selected.institute || '—'],
                 ].map(([k, v]) => (
                   <div key={k}>
                     <div style={{ fontSize: '10px', fontWeight: '700', color: '#9baabb', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>{k}</div>
@@ -693,9 +694,7 @@ const TrainingTypeIcon = ({ type }) => (
                             </td>
                             <td style={{ padding: '10px 12px', fontSize: '12px', fontFamily: 'monospace', color: '#5a6878' }}>{learner.emp_id || '—'}</td>
                             <td style={{ padding: '10px 12px', fontSize: '12px', color: '#5a6878' }}>
-                              {learner.department_name
-                                ? <span style={{ background: '#f0f9ff', color: '#0369a1', padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: '600' }}>{learner.department_name}</span>
-                                : '—'}
+                              {learner.department_name ? <span style={{ background: '#f0f9ff', color: '#0369a1', padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: '600' }}>{learner.department_name}</span> : '—'}
                             </td>
                             <td style={{ padding: '10px 12px' }}>
                               <span style={{ background: learner.attended ? '#dcfce7' : '#f0f9ff', color: learner.attended ? '#15803d' : '#0369a1', padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: '600' }}>
@@ -723,13 +722,20 @@ const TrainingTypeIcon = ({ type }) => (
                   </div>
                 )}
               </div>
+
             </div>
             <div style={styles.modalFooter}>
               <button style={styles.cancelBtn} onClick={() => { setSelected(null); setProfileLearner(null); setDeptFilter(''); }}>Close</button>
-              {/* HOD cannot send check-in or feedback or edit */}
               {!isHod && (
                 <>
-                  <button style={{ ...styles.cancelBtn, background: '#dbeafe', color: '#1d4ed8', border: 'none' }}
+                  <button
+                    style={{ ...styles.cancelBtn, background: '#f0fdf4', color: '#15803d', border: 'none' }}
+                    onClick={() => { const c = selected; setSelected(null); setQrPopup(c); }}
+                  >
+                    📱 Show QR Code
+                  </button>
+                  <button
+                    style={{ ...styles.cancelBtn, background: '#dbeafe', color: '#1d4ed8', border: 'none' }}
                     onClick={async () => {
                       const result = await api.sendCheckinLinks(selected.id);
                       if (result.links && result.links.length > 0) {
@@ -737,13 +743,15 @@ const TrainingTypeIcon = ({ type }) => (
                       } else {
                         alert(result.message || 'No learners found.');
                       }
-                    }}>
+                    }}
+                  >
                     📧 Send Check-in Links
                   </button>
                   <button
                     style={{ ...styles.cancelBtn, background: (+selected.attended_count || 0) > 0 ? '#dcfce7' : '#f1f5f9', color: (+selected.attended_count || 0) > 0 ? '#15803d' : '#9baabb', border: 'none', cursor: (+selected.attended_count || 0) > 0 ? 'pointer' : 'not-allowed' }}
                     disabled={(+selected.attended_count || 0) === 0}
-                    onClick={() => handleSendFeedback(selected)}>
+                    onClick={() => handleSendFeedback(selected)}
+                  >
                     📝 Send Feedback Form
                   </button>
                   <button style={styles.saveBtn} onClick={() => { setSelected(null); openEdit(selected); }}>Edit Course</button>
@@ -774,12 +782,12 @@ const TrainingTypeIcon = ({ type }) => (
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                 {[
-                  ['Emp ID',      profileLearner.emp_id || '—'],
-                  ['Department',  profileLearner.department_name || '—'],
-                  ['Email',       profileLearner.email || '—'],
+                  ['Emp ID', profileLearner.emp_id || '—'],
+                  ['Department', profileLearner.department_name || '—'],
+                  ['Email', profileLearner.email || '—'],
                   ['Nationality', profileLearner.nationality || '—'],
-                  ['Gender',      profileLearner.gender || '—'],
-                  ['Status',      profileLearner.enrollment_status || '—'],
+                  ['Gender', profileLearner.gender || '—'],
+                  ['Status', profileLearner.enrollment_status || '—'],
                 ].map(([k, v]) => (
                   <div key={k}>
                     <div style={{ fontSize: '10px', fontWeight: '700', color: '#9baabb', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>{k}</div>
@@ -812,7 +820,10 @@ const TrainingTypeIcon = ({ type }) => (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: '#f8f9fa', borderRadius: '10px', border: '1px solid #e8ecf0', marginBottom: '16px' }}>
                     <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: '#051c2c', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: '700', flexShrink: 0 }}>
-                      {trainerPopup.name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase()}
+                      {trainerPopup.photo_url
+                        ? <img src={trainerPopup.photo_url} alt={trainerPopup.name} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                        : trainerPopup.name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase()
+                      }
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: '16px', fontWeight: '700', color: '#051c2c' }}>{trainerPopup.name}</div>
@@ -843,7 +854,7 @@ const TrainingTypeIcon = ({ type }) => (
         </div>
       )}
 
-      {/* ── FEEDBACK / SATISFACTION POPUP ── */}
+      {/* ── FEEDBACK POPUP ── */}
       {feedbackPopup && (
         <div style={{ ...styles.overlay, zIndex: 1100 }} onClick={() => setFeedbackPopup(null)}>
           <div style={{ ...styles.modal, maxWidth: '620px' }} onClick={e => e.stopPropagation()}>
@@ -861,7 +872,6 @@ const TrainingTypeIcon = ({ type }) => (
                     {manualOverride ? 'Admin has overridden the satisfaction rate' : `Based on ${feedbackList.length} feedback response${feedbackList.length !== 1 ? 's' : ''}`}
                   </div>
                 </div>
-                {/* HOD cannot toggle manual/auto */}
                 {!isHod && (
                   <div style={styles.periodToggleSmall}>
                     <button onClick={() => handleToggleManual(false)} style={{ ...styles.periodBtnSmall, ...(!manualOverride ? styles.periodBtnActiveSmall : {}) }}>Auto</button>
@@ -869,7 +879,6 @@ const TrainingTypeIcon = ({ type }) => (
                   </div>
                 )}
               </div>
-
               {manualOverride && !isHod && (
                 <div style={{ marginBottom: '18px', padding: '14px 16px', background: '#fef9c3', borderRadius: '10px', border: '1px solid #fde68a' }}>
                   <div style={{ fontSize: '12px', fontWeight: '600', color: '#92400e', marginBottom: '8px' }}>Set Manual Satisfaction Rate</div>
@@ -884,14 +893,12 @@ const TrainingTypeIcon = ({ type }) => (
                   </div>
                 </div>
               )}
-
               <div style={{ textAlign: 'center', marginBottom: '20px' }}>
                 <Stars value={feedbackPopup.stars} />
                 <div style={{ fontSize: '28px', fontWeight: '800', color: '#c8973a', marginTop: '6px' }}>
                   {Math.round((+feedbackPopup.stars / 5) * 100)}%
                 </div>
               </div>
-
               <div style={styles.sectionLabel}>Feedback Responses ({feedbackList.length})</div>
               {feedbackLoading ? (
                 <div style={{ padding: '20px', textAlign: 'center', color: '#9baabb', fontSize: '13px' }}>Loading...</div>
@@ -922,6 +929,86 @@ const TrainingTypeIcon = ({ type }) => (
             </div>
             <div style={styles.modalFooter}>
               <button style={styles.cancelBtn} onClick={() => setFeedbackPopup(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── QR CODE POPUP ── */}
+      {qrPopup && (
+        <div style={{ ...styles.overlay, zIndex: 1100 }} onClick={() => setQrPopup(null)}>
+          <div style={{ ...styles.modal, maxWidth: '420px' }} onClick={e => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <span style={styles.modalTitle}>Course Check-In QR Code</span>
+              <button style={styles.modalClose} onClick={() => setQrPopup(null)}>×</button>
+            </div>
+            <div style={styles.modalBody}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '13px', color: '#5a6878', marginBottom: '20px', lineHeight: 1.6 }}>
+                  Project or print this QR code during the training.<br />
+                  Learners scan it and enter their Employee ID to check in.
+                </div>
+                <div style={{ background: '#f8f9fa', border: '2px solid #e8ecf0', borderRadius: '12px', padding: '24px', display: 'inline-block', marginBottom: '16px' }}>
+                  <QRCodeSVG
+                    value={qrUrl}
+                    size={200}
+                    bgColor="#f8f9fa"
+                    fgColor="#051c2c"
+                    level="M"
+                  />
+                </div>
+                <div style={{ fontSize: '14px', fontWeight: '700', color: '#051c2c', marginBottom: '6px' }}>
+                  {qrPopup.title}
+                </div>
+                <div style={{ fontSize: '11px', color: '#9baabb', fontFamily: 'monospace', wordBreak: 'break-all', padding: '8px 12px', background: '#f8f9fa', borderRadius: '6px', margin: '10px 0', border: '1px solid #e8ecf0' }}>
+                  {qrUrl}
+                </div>
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '12px' }}>
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(qrUrl); alert('Link copied!'); }}
+                    style={{ background: '#f2f4f6', color: '#051c2c', border: '1px solid #e8ecf0', borderRadius: '8px', padding: '9px 16px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
+                  >
+                    📋 Copy Link
+                  </button>
+                  <button
+                    onClick={() => {
+                      const svg = document.querySelector('[data-qr-svg]');
+                      const svgContent = svg ? svg.outerHTML : '';
+                      const printWindow = window.open('', '_blank');
+                      printWindow.document.write(`
+                        <html><head><title>QR Code — ${qrPopup.title}</title>
+                        <style>
+                          body { font-family: Inter, sans-serif; text-align: center; padding: 60px 40px; background: white; color: #051c2c; }
+                          h1 { font-size: 24px; margin-bottom: 8px; }
+                          p { color: #5a6878; margin-bottom: 32px; font-size: 14px; }
+                          .qr-wrap { border: 2px solid #e8ecf0; border-radius: 16px; padding: 32px; display: inline-block; margin-bottom: 24px; }
+                          .url { font-family: monospace; font-size: 11px; color: #9baabb; word-break: break-all; margin-top: 16px; padding: 10px; background: #f8f9fa; border-radius: 6px; }
+                          .instructions { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 16px 24px; margin-top: 24px; font-size: 14px; color: #0369a1; max-width: 400px; margin-left: auto; margin-right: auto; }
+                          @media print { body { padding: 20px; } }
+                        </style></head>
+                        <body>
+                          <h1>Training Check-In</h1>
+                          <p>${qrPopup.title}</p>
+                          <div class="qr-wrap">${svgContent}</div>
+                          <div class="url">${qrUrl}</div>
+                          <div class="instructions">
+                            📱 Scan this QR code with your phone camera<br><br>
+                            Then enter your <strong>Employee ID</strong> to record your attendance
+                          </div>
+                        </body></html>
+                      `);
+                      printWindow.document.close();
+                      setTimeout(() => printWindow.print(), 500);
+                    }}
+                    style={{ background: '#051c2c', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '9px 16px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
+                  >
+                    🖨️ Print QR
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div style={styles.modalFooter}>
+              <button style={styles.cancelBtn} onClick={() => setQrPopup(null)}>Close</button>
             </div>
           </div>
         </div>
@@ -970,9 +1057,7 @@ function CourseForm({ f, setF, trainers }) {
         <F label="Venue"                 value={f.venue}          onChange={v => setF({...f, venue: v})}          placeholder="e.g. Dubai HQ" />
       </div>
       <div style={{ marginTop: '16px', padding: '16px', background: '#f8f9fa', borderRadius: '10px', border: '1px solid #e8ecf0' }}>
-        <label style={{ fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '10px' }}>
-          Satisfaction Rate
-        </label>
+        <label style={{ fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '10px' }}>Satisfaction Rate</label>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{ display: 'flex', gap: '4px' }}>
             {[1,2,3,4,5].map(star => (
@@ -1060,7 +1145,8 @@ const styles = {
   modalFooter:          { padding: '14px 24px', borderTop: '1px solid #e8ecf0', display: 'flex', justifyContent: 'flex-end', gap: '8px', flexWrap: 'wrap' },
   cancelBtn:            { padding: '9px 16px', background: 'none', border: '1.5px solid #e8ecf0', borderRadius: '8px', fontSize: '12.5px', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
   saveBtn:              { padding: '9px 20px', background: '#051c2c', border: 'none', borderRadius: '8px', fontSize: '12.5px', fontWeight: '600', cursor: 'pointer', color: '#ffffff', fontFamily: 'Inter, sans-serif' },
-coverImg: { width: '100%', height: '100px', background: '#f2f4f6', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px', position: 'relative', overflow: 'hidden' },  infoBar:              { display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '8px', background: '#f8f9fa', borderRadius: '10px', padding: '14px', marginBottom: '16px', border: '1px solid #e8ecf0' },
+  coverImg:             { width: '100%', height: '100px', background: '#f2f4f6', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px', position: 'relative', overflow: 'hidden' },
+  infoBar:              { display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '8px', background: '#f8f9fa', borderRadius: '10px', padding: '14px', marginBottom: '16px', border: '1px solid #e8ecf0' },
   infoBarItem:          { textAlign: 'center' },
   infoBarLabel:         { fontSize: '9px', color: '#9baabb', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '4px' },
   infoBarValue:         { fontSize: '13px', fontWeight: '700', color: '#051c2c' },
