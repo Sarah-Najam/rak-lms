@@ -197,16 +197,17 @@ function CalendarPage() {
 
   // Icon next to training name: black triangle = Developmental, blue square = Mandatory
   const TrainingTypeIcon = ({ type }) => (
-    <span
-      title={type === 'Mandatory' ? 'Mandatory Training' : 'Developmental Training'}
+    <div title={type === 'Mandatory' ? 'Mandatory' : 'Developmental'}
       style={{
-        display: 'inline-block', marginRight: '6px',
-        color: type === 'Mandatory' ? '#1d4ed8' : '#111827',
-        fontSize: '11px', verticalAlign: 'middle',
+        width: '32px', height: '32px', borderRadius: '8px',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: type === 'Mandatory' ? 'rgba(190,200,190,0.3)' : 'rgba(175,95,70,0.12)',
+        fontSize: '16px', fontWeight: '900', margin: '0 auto',
+        color: type === 'Mandatory' ? '#5a8060' : '#AF5F46',
       }}
     >
       {type === 'Mandatory' ? '■' : '▲'}
-    </span>
+    </div>
   );
 
   return (
@@ -295,10 +296,10 @@ function CalendarPage() {
         <div style={styles.tableWrap}>
           <div style={styles.tableTitle}>
             Training Calendar
-            <span style={{ fontSize: '11px', fontWeight: '400', marginLeft: '10px', display: 'inline-flex', alignItems: 'center', gap: '10px' }}>
-  <span style={{ color: '#AF5F46', fontWeight: '700' }}>▲</span>
+            <span style={{ fontSize: '11px', fontWeight: '400', marginLeft: '10px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+  <span style={{ color: '#AF5F46', fontWeight: '900', fontSize: '14px' }}>▲</span>
   <span style={{ color: '#5a6878' }}>Developmental</span>
-  <span style={{ color: '#6b8a6b', fontWeight: '700', marginLeft: '6px' }}>■</span>
+  <span style={{ color: '#5a8060', fontWeight: '900', fontSize: '14px', marginLeft: '8px' }}>■</span>
   <span style={{ color: '#5a6878' }}>Mandatory</span>
 </span>
             <span style={{ fontSize: '13px', color: '#9baabb', fontWeight: '400', marginLeft: '8px' }}>
@@ -309,10 +310,10 @@ function CalendarPage() {
             <table style={{ ...styles.table, minWidth: '1180px' }}>
               <thead>
                 <tr style={styles.theadRow}>
-                  {['No.', 'Training Name', 'Department', 'Status', 'Start Date', 'End Date',
-                    'Duration', 'Mode of Delivery', 'Training Hours', 'Cost (AED)', 'Remarks', ''].map(h => (
-                    <th key={h} style={styles.th}>{h}</th>
-                  ))}
+                  {['No.', '', 'Training Name', 'Department', 'Status', 'Start Date', 'End Date',
+                'Duration', 'Mode of Delivery', 'Training Hours', 'Cost (AED)', 'Remarks', ''].map((h, i) => (
+                <th key={i} style={{ ...styles.th, ...(h === '' ? { width: '48px', padding: '11px 6px' } : {}) }}>{h}</th>
+              ))}
                 </tr>
               </thead>
               <tbody>
@@ -321,8 +322,10 @@ function CalendarPage() {
                     <td style={styles.td}>
                       {(currentPage - 1) * ITEMS_PER_PAGE + i + 1}
                     </td>
-                    <td style={{ ...styles.td, minWidth: '200px', fontWeight: 600 }}>
+                    <td style={{ ...styles.td, width: '48px', padding: '8px 6px', textAlign: 'center' }}>
                       <TrainingTypeIcon type={entry.type} />
+                    </td>
+                    <td style={{ ...styles.td, minWidth: '200px', fontWeight: 600 }}>
                       {entry.training_name}
                     </td>
                     <td style={{ ...styles.td, fontSize: '12px' }}>

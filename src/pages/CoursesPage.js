@@ -263,20 +263,17 @@ function CoursesPage({ user }) {
   };
 
 const TrainingTypeIcon = ({ type }) => (
-    <span
-      title={type === 'Mandatory' ? 'Mandatory Course' : 'Developmental Course'}
+    <div title={type === 'Mandatory' ? 'Mandatory' : 'Developmental'}
       style={{
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        width: '24px', height: '24px', borderRadius: '5px',
-        marginRight: '10px', flexShrink: 0, verticalAlign: 'middle',
-        background: type === 'Mandatory' ? 'rgba(190,200,190,0.3)' : 'rgba(175,95,70,0.15)',
-        color: type === 'Mandatory' ? '#6b8a6b' : '#AF5F46',
-        fontSize: '14px', fontWeight: '900', lineHeight: '24px',
-        textAlign: 'center',
+        width: '32px', height: '32px', borderRadius: '8px',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: type === 'Mandatory' ? 'rgba(190,200,190,0.3)' : 'rgba(175,95,70,0.12)',
+        fontSize: '16px', fontWeight: '900', margin: '0 auto',
+        color: type === 'Mandatory' ? '#5a8060' : '#AF5F46',
       }}
     >
       {type === 'Mandatory' ? '■' : '▲'}
-    </span>
+    </div>
   );
 
   const Stars = ({ value, showPct = false }) => {
@@ -418,21 +415,23 @@ const TrainingTypeIcon = ({ type }) => (
         <div style={styles.tableWrap}>
           <div style={styles.tableTitle}>
             Courses
-<span style={{ fontSize: '11px', fontWeight: '400', marginLeft: '10px', display: 'inline-flex', alignItems: 'center', gap: '10px' }}>
-  <span style={{ color: '#AF5F46', fontWeight: '700' }}>▲</span>
+<span style={{ fontSize: '11px', fontWeight: '400', marginLeft: '10px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+  <span style={{ color: '#AF5F46', fontWeight: '900', fontSize: '14px' }}>▲</span>
   <span style={{ color: '#5a6878' }}>Developmental</span>
-  <span style={{ color: '#6b8a6b', fontWeight: '700', marginLeft: '6px' }}>■</span>
+  <span style={{ color: '#5a8060', fontWeight: '900', fontSize: '14px', marginLeft: '8px' }}>■</span>
   <span style={{ color: '#5a6878' }}>Mandatory</span>
-</span>          </div>
+</span>         </div>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ ...styles.table, minWidth: '1080px' }}>
               <thead>
                 <tr style={styles.theadRow}>
-                  {['No.', 'Name', 'Institute', 'Trainer', 'Start Date', 'End Date',
+                  {['No.', '', 'Name', 'Institute', 'Trainer', 'Start Date', 'End Date',
                     'Type', 'Status', 'Enrolled', 'Attended', 'Participation Rate',
                     'Total Learning Hours', 'Satisfaction Rate',
                     ...(isHod ? [] : [''])
-                  ].map(h => <th key={h} style={styles.th}>{h}</th>)}
+                  ].map((h, i) => (
+                    <th key={i} style={{ ...styles.th, ...(h === '' ? { width: '48px', padding: '11px 6px' } : {}) }}>{h}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -443,10 +442,12 @@ const TrainingTypeIcon = ({ type }) => (
                   const attRate    = enrolled > 0 ? Math.round(attended / enrolled * 100) + '%' : '—';
                   return (
                     <tr key={course.id} style={styles.tr}>
-                      <td style={styles.td}>{(currentPage - 1) * ITEMS_PER_PAGE + i + 1}</td>
+                     <td style={styles.td}>{(currentPage - 1) * ITEMS_PER_PAGE + i + 1}</td>
+                      <td style={{ ...styles.td, width: '48px', padding: '8px 6px', textAlign: 'center' }}>
+                        <TrainingTypeIcon type={course.training_type || 'Developmental'} />
+                      </td>
                       <td style={{ ...styles.td, minWidth: '200px' }}>
                         <button style={styles.courseNameBtn} onClick={() => openDetail(course)}>
-                          <TrainingTypeIcon type={course.training_type || 'Developmental'} />
                           {course.title}
                         </button>
                       </td>
