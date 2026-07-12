@@ -262,9 +262,19 @@ function CoursesPage({ user }) {
     return <span style={{ background: c.bg, color: c.color, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600' }}>{status}</span>;
   };
 
-  const TrainingTypeIcon = ({ type }) => (
-    <span title={type === 'Mandatory' ? 'Mandatory Course' : 'Developmental Course'}
-      style={{ display: 'inline-block', marginRight: '6px', color: type === 'Mandatory' ? '#1d4ed8' : '#111827', fontSize: '11px', verticalAlign: 'middle' }}>
+const TrainingTypeIcon = ({ type }) => (
+    <span
+      title={type === 'Mandatory' ? 'Mandatory Course' : 'Developmental Course'}
+      style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        width: '24px', height: '24px', borderRadius: '5px',
+        marginRight: '10px', flexShrink: 0, verticalAlign: 'middle',
+        background: type === 'Mandatory' ? 'rgba(190,200,190,0.3)' : 'rgba(175,95,70,0.15)',
+        color: type === 'Mandatory' ? '#6b8a6b' : '#AF5F46',
+        fontSize: '14px', fontWeight: '900', lineHeight: '24px',
+        textAlign: 'center',
+      }}
+    >
       {type === 'Mandatory' ? '■' : '▲'}
     </span>
   );
@@ -408,8 +418,12 @@ function CoursesPage({ user }) {
         <div style={styles.tableWrap}>
           <div style={styles.tableTitle}>
             Courses
-            <span style={{ fontSize: '11px', color: '#5a6878', fontWeight: '400', marginLeft: '10px' }}>▲ Developmental &nbsp; ■ Mandatory</span>
-          </div>
+<span style={{ fontSize: '11px', fontWeight: '400', marginLeft: '10px', display: 'inline-flex', alignItems: 'center', gap: '10px' }}>
+  <span style={{ color: '#AF5F46', fontWeight: '700' }}>▲</span>
+  <span style={{ color: '#5a6878' }}>Developmental</span>
+  <span style={{ color: '#6b8a6b', fontWeight: '700', marginLeft: '6px' }}>■</span>
+  <span style={{ color: '#5a6878' }}>Mandatory</span>
+</span>          </div>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ ...styles.table, minWidth: '1080px' }}>
               <thead>

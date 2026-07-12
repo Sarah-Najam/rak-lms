@@ -295,9 +295,12 @@ function CalendarPage() {
         <div style={styles.tableWrap}>
           <div style={styles.tableTitle}>
             Training Calendar
-            <span style={{ fontSize: '11px', color: '#5a6878', fontWeight: '400', marginLeft: '10px' }}>
-              ▲ Developmental &nbsp; ■ Mandatory
-            </span>
+            <span style={{ fontSize: '11px', fontWeight: '400', marginLeft: '10px', display: 'inline-flex', alignItems: 'center', gap: '10px' }}>
+  <span style={{ color: '#AF5F46', fontWeight: '700' }}>▲</span>
+  <span style={{ color: '#5a6878' }}>Developmental</span>
+  <span style={{ color: '#6b8a6b', fontWeight: '700', marginLeft: '6px' }}>■</span>
+  <span style={{ color: '#5a6878' }}>Mandatory</span>
+</span>
             <span style={{ fontSize: '13px', color: '#9baabb', fontWeight: '400', marginLeft: '8px' }}>
               {filtered.length} entr{filtered.length !== 1 ? 'ies' : 'y'}
             </span>
