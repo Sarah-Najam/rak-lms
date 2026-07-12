@@ -19,6 +19,7 @@ function TrainersPage({ user }) {
   const [satPeriod,       setSatPeriod]       = useState('annual');
   const [satLoading,      setSatLoading]      = useState(false);
   const [uploadingId,     setUploadingId]     = useState(null);
+  const [photoPreview,    setPhotoPreview]    = useState(null);
 
   const emptyForm = {
     name: '', institute: '', expertise: '', rating: '',
@@ -61,6 +62,21 @@ function TrainersPage({ user }) {
       alert('Error uploading photo.');
     }
     setUploadingId(null);
+  };
+
+  const handleRemovePhoto = async (trainerId) => {
+    if (!window.confirm('Remove this photo?')) return;
+    try {
+      const result = await api.removeTrainerPhoto(trainerId);
+      if (result.message) {
+        loadTrainers();
+        if (selectedTrainer && selectedTrainer.id === trainerId) {
+          setSelectedTrainer(prev => ({ ...prev, photo_url: null }));
+        }
+      }
+    } catch (err) {
+      alert('Error removing photo.');
+    }
   };
 
   const filtered = trainers.filter(t =>
@@ -191,34 +207,59 @@ function TrainersPage({ user }) {
 
   const AvatarDisplay = ({ trainer, size = 'sm' }) => {
     const isLarge = size === 'lg';
-    const dim = isLarge ? '64px' : '36px';
+    const dim     = isLarge ? '64px' : '36px';
     const fontSize = isLarge ? '20px' : '12px';
     const initials = trainer.name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase();
 
     return (
       <div style={{ position: 'relative', width: dim, height: dim, flexShrink: 0 }}>
-        <div style={{
-          width: dim, height: dim, borderRadius: '50%',
-          background: '#051c2c', color: '#ffffff',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize, fontWeight: '700', overflow: 'hidden',
-        }}>
+        {/* Avatar circle — clickable to preview if large */}
+        <div
+          onClick={() => isLarge && trainer.photo_url ? setPhotoPreview(trainer.photo_url) : null}
+          style={{
+            width: dim, height: dim, borderRadius: '50%',
+            background: '#051c2c', color: '#ffffff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize, fontWeight: '700', overflow: 'hidden',
+            cursor: isLarge && trainer.photo_url ? 'zoom-in' : 'default',
+          }}
+        >
           {trainer.photo_url
             ? <img src={trainer.photo_url} alt={trainer.name}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             : initials
           }
         </div>
+
+        {/* Upload button */}
         {isLarge && !isHod && (
           <label style={styles.photoUploadBtn} title="Upload photo">
             {uploadingId === trainer.id ? '⏳' : '📷'}
             <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
+              type="file" accept="image/jpeg,image/png,image/webp"
               style={{ display: 'none' }}
               onChange={e => handlePhotoUpload(trainer.id, e.target.files[0])}
             />
           </label>
+        )}
+
+        {/* Remove button — only shows if photo exists */}
+        {isLarge && !isHod && trainer.photo_url && (
+          <button
+            onClick={() => handleRemovePhoto(trainer.id)}
+            title="Remove photo"
+            style={{
+              position: 'absolute', top: '-4px', right: '-28px',
+              width: '22px', height: '22px', borderRadius: '50%',
+              background: '#fee2e2', color: '#991b1b',
+              border: '2px solid #ffffff', display: 'flex',
+              alignItems: 'center', justifyContent: 'center',
+              fontSize: '11px', cursor: 'pointer', fontWeight: '700',
+              lineHeight: 1,
+            }}
+          >
+            ✕
+          </button>
         )}
       </div>
     );
@@ -275,10 +316,7 @@ function TrainersPage({ user }) {
                       <td style={{ ...styles.td, minWidth: '180px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                           <AvatarDisplay trainer={trainer} size="sm" />
-                          <button
-                            style={styles.nameBtn}
-                            onClick={() => openTrainerDetail(trainer)}
-                          >
+                          <button style={styles.nameBtn} onClick={() => openTrainerDetail(trainer)}>
                             {trainer.name}
                           </button>
                         </div>
@@ -363,7 +401,7 @@ function TrainersPage({ user }) {
             <div style={styles.modalBody}>
 
               {/* Header with photo */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: '#f8f9fa', borderRadius: '12px', border: '1px solid #e8ecf0', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '20px', padding: '16px', background: '#f8f9fa', borderRadius: '12px', border: '1px solid #e8ecf0', marginBottom: '20px' }}>
                 <AvatarDisplay trainer={selectedTrainer} size="lg" />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '18px', fontWeight: '700', color: '#051c2c' }}>
@@ -382,6 +420,24 @@ function TrainersPage({ user }) {
                       {selectedTrainer.type || 'External'}
                     </span>
                   </div>
+                  {selectedTrainer.photo_url && (
+                    <div style={{ marginTop: '8px', display: 'flex', gap: '8px', fontSize: '11px' }}>
+                      <button
+                        onClick={() => setPhotoPreview(selectedTrainer.photo_url)}
+                        style={{ background: 'none', border: 'none', color: '#0369a1', cursor: 'pointer', fontSize: '11px', fontFamily: 'Inter, sans-serif', textDecoration: 'underline', padding: 0 }}
+                      >
+                        🔍 View full photo
+                      </button>
+                      {!isHod && (
+                        <button
+                          onClick={() => handleRemovePhoto(selectedTrainer.id)}
+                          style={{ background: 'none', border: 'none', color: '#991b1b', cursor: 'pointer', fontSize: '11px', fontFamily: 'Inter, sans-serif', textDecoration: 'underline', padding: 0 }}
+                        >
+                          ✕ Remove photo
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -435,10 +491,7 @@ function TrainersPage({ user }) {
                       <button
                         key={p}
                         onClick={() => handlePeriodChange(p)}
-                        style={{
-                          ...styles.periodBtn,
-                          ...(satPeriod === p ? styles.periodBtnActive : {}),
-                        }}
+                        style={{ ...styles.periodBtn, ...(satPeriod === p ? styles.periodBtnActive : {}) }}
                       >
                         {p.charAt(0).toUpperCase() + p.slice(1)}
                       </button>
@@ -456,13 +509,11 @@ function TrainersPage({ user }) {
                       <div style={{ position: 'relative', width: '80px', height: '80px', flexShrink: 0 }}>
                         <svg viewBox="0 0 80 80" style={{ width: '80px', height: '80px', transform: 'rotate(-90deg)' }}>
                           <circle cx="40" cy="40" r="34" fill="none" stroke="#e8ecf0" strokeWidth="8" />
-                          <circle
-                            cx="40" cy="40" r="34" fill="none"
+                          <circle cx="40" cy="40" r="34" fill="none"
                             stroke={satData.percentage >= 80 ? '#16a34a' : satData.percentage >= 60 ? '#c8973a' : '#dc2626'}
                             strokeWidth="8"
                             strokeDasharray={`${2 * Math.PI * 34 * satData.percentage / 100} ${2 * Math.PI * 34}`}
-                            strokeLinecap="round"
-                          />
+                            strokeLinecap="round" />
                         </svg>
                         <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                           <span style={{ fontSize: '16px', fontWeight: '800', color: '#051c2c', lineHeight: 1 }}>
@@ -476,21 +527,10 @@ function TrainersPage({ user }) {
                         </div>
                         <div style={{ fontSize: '13px', color: '#c8973a', marginTop: '4px' }}>
                           {'★'.repeat(Math.round(satData.star_value))}{'☆'.repeat(5 - Math.round(satData.star_value))}
-                          <span style={{ fontSize: '12px', color: '#9baabb', marginLeft: '6px' }}>
-                            {satData.star_value}/5
-                          </span>
-                        </div>
-                        <div style={{ marginTop: '6px', display: 'flex', gap: '8px', fontSize: '11px' }}>
-                          <span style={{ background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>
-                            ★★★★★ = 100%
-                          </span>
-                          <span style={{ background: '#fef9c3', color: '#a16207', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>
-                            ★★★★☆ = 80%
-                          </span>
+                          <span style={{ fontSize: '12px', color: '#9baabb', marginLeft: '6px' }}>{satData.star_value}/5</span>
                         </div>
                       </div>
                     </div>
-
                     <div style={{ borderTop: '1px solid #e8ecf0', paddingTop: '14px' }}>
                       <div style={{ fontSize: '11px', fontWeight: '700', color: '#9baabb', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>
                         Course Breakdown
@@ -528,9 +568,7 @@ function TrainersPage({ user }) {
               <span style={styles.modalTitle}>Add Trainer</span>
               <button style={styles.modalClose} onClick={() => setShowAdd(false)}>×</button>
             </div>
-            <div style={styles.modalBody}>
-              <TrainerForm f={form} setF={setForm} />
-            </div>
+            <div style={styles.modalBody}><TrainerForm f={form} setF={setForm} /></div>
             <div style={styles.modalFooter}>
               <button style={styles.cancelBtn} onClick={() => setShowAdd(false)}>Cancel</button>
               <button style={styles.saveBtn} onClick={handleSave}>Add</button>
@@ -547,13 +585,49 @@ function TrainersPage({ user }) {
               <span style={styles.modalTitle}>Edit Trainer</span>
               <button style={styles.modalClose} onClick={() => setEditTrainer(null)}>×</button>
             </div>
-            <div style={styles.modalBody}>
-              <TrainerForm f={editForm} setF={setEditForm} />
-            </div>
+            <div style={styles.modalBody}><TrainerForm f={editForm} setF={setEditForm} /></div>
             <div style={styles.modalFooter}>
               <button style={styles.cancelBtn} onClick={() => setEditTrainer(null)}>Cancel</button>
               <button style={styles.saveBtn} onClick={handleEditSave}>Save Changes</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── PHOTO PREVIEW LIGHTBOX ── */}
+      {photoPreview && (
+        <div
+          onClick={() => setPhotoPreview(null)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)',
+            zIndex: 2000, display: 'flex', alignItems: 'center',
+            justifyContent: 'center', padding: '20px', cursor: 'zoom-out',
+          }}
+        >
+          <div style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
+            <img
+              src={photoPreview}
+              alt="Preview"
+              style={{
+                maxWidth: '90vw', maxHeight: '85vh',
+                borderRadius: '12px',
+                boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+                display: 'block',
+              }}
+            />
+            <button
+              onClick={() => setPhotoPreview(null)}
+              style={{
+                position: 'absolute', top: '-14px', right: '-14px',
+                width: '32px', height: '32px', borderRadius: '50%',
+                background: '#ffffff', border: 'none', fontSize: '18px',
+                cursor: 'pointer', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', fontWeight: '700', color: '#051c2c',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.3)', lineHeight: 1,
+              }}
+            >
+              ×
+            </button>
           </div>
         </div>
       )}
@@ -565,9 +639,6 @@ function TrainersPage({ user }) {
 function TrainerForm({ f, setF }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      <div style={{ fontSize: '12px', color: '#9baabb', background: '#f8f9fa', padding: '10px 14px', borderRadius: '8px', border: '1px solid #e8ecf0' }}>
-        📷 Photo can be uploaded after saving the trainer via the trainer profile.
-      </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
         <F label="Full Name *"         value={f.name}      onChange={v => setF({...f, name: v})}      placeholder="e.g. Dr. Omar Khalid" />
         <F label="Institute"            value={f.institute} onChange={v => setF({...f, institute: v})} placeholder="e.g. RERA Academy" />
@@ -581,10 +652,8 @@ function TrainerForm({ f, setF }) {
       </div>
       <div>
         <label style={{ fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '5px' }}>Bio</label>
-        <textarea
-          value={f.bio}
-          onChange={e => setF({...f, bio: e.target.value})}
-          placeholder="Brief description of trainer's background and experience..."
+        <textarea value={f.bio} onChange={e => setF({...f, bio: e.target.value})
+          } placeholder="Brief description of trainer's background and experience..."
           style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #e8ecf0', borderRadius: '8px', fontSize: '13px', outline: 'none', background: '#f8f9fa', color: '#051c2c', fontFamily: 'Inter, sans-serif', minHeight: '80px', resize: 'vertical', boxSizing: 'border-box' }}
         />
       </div>

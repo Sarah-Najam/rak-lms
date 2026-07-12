@@ -28,6 +28,8 @@ function LearnersPage({ user }) {
   const [selected,       setSelected]       = useState(null);
   const [currentPage,    setCurrentPage]    = useState(1);
   const [enrollStats,    setEnrollStats]    = useState({ enrolled: 0, attended: 0 });
+  const [photoPreview,   setPhotoPreview]   = useState(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const emptyForm = {
     empId: '', name: '', nationality: '', designation: '',
@@ -56,6 +58,44 @@ function LearnersPage({ user }) {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+  };
+
+  const handlePhotoUpload = async (learnerId, file) => {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File too large. Maximum size is 5MB.');
+      return;
+    }
+    setUploadingPhoto(true);
+    try {
+      const result = await api.uploadLearnerPhoto(learnerId, file);
+      if (result.url) {
+        loadLearners();
+        if (selected && selected.id === learnerId) {
+          setSelected(prev => ({ ...prev, profile_photo: result.url }));
+        }
+      } else {
+        alert(result.error || 'Upload failed.');
+      }
+    } catch (err) {
+      alert('Error uploading photo.');
+    }
+    setUploadingPhoto(false);
+  };
+
+  const handleRemovePhoto = async (learnerId) => {
+    if (!window.confirm('Remove this photo?')) return;
+    try {
+      const result = await api.removeLearnerPhoto(learnerId);
+      if (result.message) {
+        loadLearners();
+        if (selected && selected.id === learnerId) {
+          setSelected(prev => ({ ...prev, profile_photo: null }));
+        }
+      }
+    } catch (err) {
+      alert('Error removing photo.');
+    }
   };
 
   const emiratiLearners = learners.filter(l => l.nationality === 'Emirati');
@@ -209,26 +249,7 @@ function LearnersPage({ user }) {
       alert('Error updating enrollment.');
     }
   };
-const handlePhotoUpload = async (learnerId, file) => {
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      alert('File too large. Maximum size is 5MB.');
-      return;
-    }
-    try {
-      const result = await api.uploadLearnerPhoto(learnerId, file);
-      if (result.url) {
-        loadLearners();
-        if (selected && selected.id === learnerId) {
-          setSelected(prev => ({ ...prev, profile_photo: result.url }));
-        }
-      } else {
-        alert(result.error || 'Upload failed.');
-      }
-    } catch (err) {
-      alert('Error uploading photo.');
-    }
-  };
+
   const handleToggleStatus = async (learner) => {
     const newStatus = learner.status === 'Active' ? 'Resigned/Terminated' : 'Active';
     try {
@@ -266,7 +287,7 @@ const handlePhotoUpload = async (learnerId, file) => {
   return (
     <div style={styles.page}>
 
-      {/* ── READ ONLY BANNER FOR HOD ── */}
+      {/* ── HOD BANNER ── */}
       {isHod && (
         <div style={styles.hodBanner}>
           👁 You are viewing your department's learners in read-only mode.
@@ -306,12 +327,8 @@ const handlePhotoUpload = async (learnerId, file) => {
             <div style={{ ...styles.genderCard, background: '#051C2C' }}>
               <div style={{ ...styles.genderTitle, color: '#ffffff' }}>Male and Female Learners</div>
               <div style={styles.peopleRow}>
-                {Array.from({ length: Math.min(allMale.length, 8) }).map((_, i) => (
-                  <PersonIcon key={'m' + i} color="#ffffff" />
-                ))}
-                {Array.from({ length: Math.min(allFemale.length, 8) }).map((_, i) => (
-                  <PersonIcon key={'f' + i} color="#A5C8D2" />
-                ))}
+                {Array.from({ length: Math.min(allMale.length, 8) }).map((_, i) => <PersonIcon key={'m'+i} color="#ffffff" />)}
+                {Array.from({ length: Math.min(allFemale.length, 8) }).map((_, i) => <PersonIcon key={'f'+i} color="#A5C8D2" />)}
               </div>
               <div style={styles.genderLegendLight}>
                 <span><span style={{ color: '#ffffff' }}>●</span> Male ({allMale.length})</span>
@@ -321,12 +338,8 @@ const handlePhotoUpload = async (learnerId, file) => {
             <div style={{ ...styles.genderCard, background: '#AF5F46' }}>
               <div style={{ ...styles.genderTitle, color: '#ffffff' }}>Emirati Male and Female Learners</div>
               <div style={styles.peopleRow}>
-                {Array.from({ length: Math.min(emiratiMale.length, 8) }).map((_, i) => (
-                  <PersonIcon key={'em' + i} color="#051C2C" />
-                ))}
-                {Array.from({ length: Math.min(emiratiFemale.length, 8) }).map((_, i) => (
-                  <PersonIcon key={'ef' + i} color="#ffffff" />
-                ))}
+                {Array.from({ length: Math.min(emiratiMale.length, 8) }).map((_, i) => <PersonIcon key={'em'+i} color="#051C2C" />)}
+                {Array.from({ length: Math.min(emiratiFemale.length, 8) }).map((_, i) => <PersonIcon key={'ef'+i} color="#ffffff" />)}
               </div>
               <div style={styles.genderLegendLight}>
                 <span><span style={{ color: '#051C2C' }}>●</span> Male ({emiratiMale.length})</span>
@@ -338,12 +351,8 @@ const handlePhotoUpload = async (learnerId, file) => {
           <div style={{ ...styles.genderCard, background: '#AF5F46', gridColumn: 'span 2' }}>
             <div style={{ ...styles.genderTitle, color: '#ffffff' }}>Emirati Male and Female Learners</div>
             <div style={styles.peopleRow}>
-              {Array.from({ length: Math.min(emiratiMale.length, 12) }).map((_, i) => (
-                <PersonIcon key={'em' + i} color="#051C2C" />
-              ))}
-              {Array.from({ length: Math.min(emiratiFemale.length, 12) }).map((_, i) => (
-                <PersonIcon key={'ef' + i} color="#ffffff" />
-              ))}
+              {Array.from({ length: Math.min(emiratiMale.length, 12) }).map((_, i) => <PersonIcon key={'em'+i} color="#051C2C" />)}
+              {Array.from({ length: Math.min(emiratiFemale.length, 12) }).map((_, i) => <PersonIcon key={'ef'+i} color="#ffffff" />)}
             </div>
             <div style={styles.genderLegendLight}>
               <span><span style={{ color: '#051C2C' }}>●</span> Emirati Male ({emiratiMale.length})</span>
@@ -365,22 +374,18 @@ const handlePhotoUpload = async (learnerId, file) => {
           <div style={styles.searchWrap}>
             <span style={styles.searchIcon}>🔍</span>
             <input style={styles.searchInput} placeholder="Search by Name"
-              value={searchName}
-              onChange={e => { setSearchName(e.target.value); setCurrentPage(1); }} />
+              value={searchName} onChange={e => { setSearchName(e.target.value); setCurrentPage(1); }} />
           </div>
           <div style={styles.searchWrap}>
             <span style={styles.searchIcon}>🔍</span>
             <input style={styles.searchInput} placeholder="Search by ID"
-              value={searchId}
-              onChange={e => { setSearchId(e.target.value); setCurrentPage(1); }} />
+              value={searchId} onChange={e => { setSearchId(e.target.value); setCurrentPage(1); }} />
           </div>
           <div style={styles.searchWrap}>
             <span style={styles.searchIcon}>🔍</span>
             <input style={styles.searchInput} placeholder="Search by Email"
-              value={searchEmail}
-              onChange={e => { setSearchEmail(e.target.value); setCurrentPage(1); }} />
+              value={searchEmail} onChange={e => { setSearchEmail(e.target.value); setCurrentPage(1); }} />
           </div>
-          {/* HOD cannot add learners */}
           {!isHod && (
             <button style={styles.addBtn} onClick={() => setShowModal(true)}>
               Add Learner
@@ -445,7 +450,6 @@ const handlePhotoUpload = async (learnerId, file) => {
                         {learner.status}
                       </span>
                     </td>
-                    {/* HOD sees no action column */}
                     {!isHod && (
                       <td style={{ ...styles.td, position: 'relative' }}>
                         <button
@@ -463,15 +467,8 @@ const handlePhotoUpload = async (learnerId, file) => {
                               📚 Assign Course
                             </button>
                             <button
-                              style={{
-                                ...styles.actionMenuItem,
-                                color:      learner.status === 'Active' ? '#991b1b' : '#15803d',
-                                fontWeight: '600',
-                              }}
-                              onClick={() => {
-                                handleToggleStatus(learner);
-                                setActionMenu(null);
-                              }}
+                              style={{ ...styles.actionMenuItem, color: learner.status === 'Active' ? '#991b1b' : '#15803d', fontWeight: '600' }}
+                              onClick={() => { handleToggleStatus(learner); setActionMenu(null); }}
                             >
                               {learner.status === 'Active' ? '🚫 Deactivate' : '✅ Activate'}
                             </button>
@@ -487,10 +484,7 @@ const handlePhotoUpload = async (learnerId, file) => {
 
           {filtered.length === 0 && (
             <div style={styles.emptyState}>
-              {learners.length === 0
-                ? 'No learners yet.'
-                : 'No learners match your search.'
-              }
+              {learners.length === 0 ? 'No learners yet.' : 'No learners match your search.'}
             </div>
           )}
 
@@ -503,7 +497,7 @@ const handlePhotoUpload = async (learnerId, file) => {
         </div>
       )}
 
-      {/* ── ADD LEARNER MODAL — admin only ── */}
+      {/* ── ADD LEARNER MODAL ── */}
       {showModal && !isHod && (
         <div style={styles.overlay} onClick={() => setShowModal(false)}>
           <div style={styles.modal} onClick={e => e.stopPropagation()}>
@@ -512,10 +506,8 @@ const handlePhotoUpload = async (learnerId, file) => {
               <button style={styles.modalClose} onClick={() => setShowModal(false)}>×</button>
             </div>
             <div style={styles.modalBody}>
-              <div style={styles.photoUpload}>
-                <div style={{ fontSize: '11px', color: '#9baabb', textAlign: 'center' }}>
-                  Photo can be added after saving the learner.
-                </div>
+              <div style={{ fontSize: '12px', color: '#9baabb', background: '#f8f9fa', padding: '10px 14px', borderRadius: '8px', border: '1px solid #e8ecf0', marginBottom: '16px' }}>
+                📷 Profile photo can be added after saving via the learner profile popup.
               </div>
               <div style={styles.formGrid}>
                 <FormField label="Emp ID *"     value={form.empId}        onChange={v => setForm({...form, empId: v})}        placeholder="e.g. RAK-006" />
@@ -536,8 +528,7 @@ const handlePhotoUpload = async (learnerId, file) => {
                       <input type="radio" name="status" value={s}
                         checked={form.status === s}
                         onChange={() => setForm({...form, status: s})}
-                        style={{ accentColor: '#051c2c' }}
-                      />
+                        style={{ accentColor: '#051c2c' }} />
                       {s}
                     </label>
                   ))}
@@ -552,7 +543,7 @@ const handlePhotoUpload = async (learnerId, file) => {
         </div>
       )}
 
-      {/* ── EDIT LEARNER MODAL — admin only ── */}
+      {/* ── EDIT LEARNER MODAL ── */}
       {showEdit && selected && !isHod && (
         <div style={styles.overlay} onClick={() => setShowEdit(false)}>
           <div style={styles.modal} onClick={e => e.stopPropagation()}>
@@ -580,8 +571,7 @@ const handlePhotoUpload = async (learnerId, file) => {
                       <input type="radio" name="editStatus" value={s}
                         checked={editForm.status === s}
                         onChange={() => setEditForm({...editForm, status: s})}
-                        style={{ accentColor: '#051c2c' }}
-                      />
+                        style={{ accentColor: '#051c2c' }} />
                       {s}
                     </label>
                   ))}
@@ -606,22 +596,54 @@ const handlePhotoUpload = async (learnerId, file) => {
             </div>
             <div style={styles.modalBody}>
               <div style={styles.profileHeader}>
+
+                {/* Avatar with upload + remove + preview */}
                 <div style={{ position: 'relative', flexShrink: 0 }}>
-                <div style={styles.profileAvatar}>
-                  {selected.profile_photo
-                    ? <img src={selected.profile_photo} alt={selected.name}
-                        style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-                    : selected.name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase()
-                  }
+                  <div
+                    onClick={() => selected.profile_photo && setPhotoPreview(selected.profile_photo)}
+                    style={{
+                      ...styles.profileAvatar,
+                      cursor: selected.profile_photo ? 'zoom-in' : 'default',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {selected.profile_photo
+                      ? <img src={selected.profile_photo} alt={selected.name}
+                          style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                      : selected.name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase()
+                    }
+                  </div>
+
+                  {/* Upload button */}
+                  {!isHod && (
+                    <label style={styles.photoUploadBtn} title="Upload photo">
+                      {uploadingPhoto ? '⏳' : '📷'}
+                      <input type="file" accept="image/jpeg,image/png,image/webp"
+                        style={{ display: 'none' }}
+                        onChange={e => handlePhotoUpload(selected.id, e.target.files[0])} />
+                    </label>
+                  )}
+
+                  {/* Remove button */}
+                  {!isHod && selected.profile_photo && (
+                    <button
+                      onClick={() => handleRemovePhoto(selected.id)}
+                      title="Remove photo"
+                      style={{
+                        position: 'absolute', top: '-4px', right: '-28px',
+                        width: '22px', height: '22px', borderRadius: '50%',
+                        background: '#fee2e2', color: '#991b1b',
+                        border: '2px solid #ffffff', display: 'flex',
+                        alignItems: 'center', justifyContent: 'center',
+                        fontSize: '11px', cursor: 'pointer', fontWeight: '700',
+                        lineHeight: 1,
+                      }}
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
-                {!isHod && (
-                  <label style={styles.photoUploadBtn} title="Upload photo">
-                    📷
-                    <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
-                      onChange={e => handlePhotoUpload(selected.id, e.target.files[0])} />
-                  </label>
-                )}
-              </div>
+
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '18px', fontWeight: '700', color: '#051c2c' }}>
                     {selected.name}
@@ -649,6 +671,15 @@ const handlePhotoUpload = async (learnerId, file) => {
                     )}
                     {selected.learner_level && levelBadge(selected.learner_level)}
                   </div>
+                  {/* View full photo link */}
+                  {selected.profile_photo && (
+                    <button
+                      onClick={() => setPhotoPreview(selected.profile_photo)}
+                      style={{ background: 'none', border: 'none', color: '#0369a1', cursor: 'pointer', fontSize: '11px', fontFamily: 'Inter, sans-serif', textDecoration: 'underline', padding: 0, marginTop: '6px' }}
+                    >
+                      🔍 View full photo
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -667,10 +698,10 @@ const handlePhotoUpload = async (learnerId, file) => {
 
               <div style={styles.trainingStats}>
                 {[
-                  ['Courses Enrolled', enrolledCount,                  '#051c2c'],
-                  ['Courses Attended', completedCount,                  '#15803d'],
-                  ['Training Hours',   totalTrainingHours + 'h',        '#0369a1'],
-                  ['Pending',          enrolledCount - completedCount,  '#a16207'],
+                  ['Courses Enrolled', enrolledCount,               '#051c2c'],
+                  ['Courses Attended', completedCount,               '#15803d'],
+                  ['Training Hours',   totalTrainingHours + 'h',     '#0369a1'],
+                  ['Pending',          enrolledCount - completedCount,'#a16207'],
                 ].map(([label, value, color]) => (
                   <div key={label} style={styles.trainingStat}>
                     <div style={{ fontSize: '22px', fontWeight: '800', color }}>{value}</div>
@@ -785,7 +816,7 @@ const handlePhotoUpload = async (learnerId, file) => {
         </div>
       )}
 
-      {/* ── ASSIGN COURSE MODAL — admin only ── */}
+      {/* ── ASSIGN COURSE MODAL ── */}
       {showAssign && selected && !isHod && (
         <div style={styles.overlay} onClick={() => setShowAssign(false)}>
           <div style={{ ...styles.modal, maxWidth: '580px' }} onClick={e => e.stopPropagation()}>
@@ -806,16 +837,12 @@ const handlePhotoUpload = async (learnerId, file) => {
                     {allCourses.map(course => {
                       const isEnrolled = enrolled.includes(course.id);
                       return (
-                        <div
-                          key={course.id}
-                          onClick={() => handleEnroll(course.id)}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: '12px',
-                            padding: '12px 16px', borderRadius: '8px', cursor: 'pointer',
-                            border: `1.5px solid ${isEnrolled ? '#86efac' : '#e8ecf0'}`,
-                            background: isEnrolled ? '#f0fdf4' : '#ffffff',
-                          }}
-                        >
+                        <div key={course.id} onClick={() => handleEnroll(course.id)} style={{
+                          display: 'flex', alignItems: 'center', gap: '12px',
+                          padding: '12px 16px', borderRadius: '8px', cursor: 'pointer',
+                          border: `1.5px solid ${isEnrolled ? '#86efac' : '#e8ecf0'}`,
+                          background: isEnrolled ? '#f0fdf4' : '#ffffff',
+                        }}>
                           <div style={{
                             width: '20px', height: '20px', borderRadius: '50%',
                             border: `2px solid ${isEnrolled ? '#15803d' : '#d1d5db'}`,
@@ -848,6 +875,44 @@ const handlePhotoUpload = async (learnerId, file) => {
             <div style={styles.modalFooter}>
               <button style={styles.cancelBtn} onClick={() => setShowAssign(false)}>Done</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── PHOTO PREVIEW LIGHTBOX ── */}
+      {photoPreview && (
+        <div
+          onClick={() => setPhotoPreview(null)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)',
+            zIndex: 2000, display: 'flex', alignItems: 'center',
+            justifyContent: 'center', padding: '20px', cursor: 'zoom-out',
+          }}
+        >
+          <div style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
+            <img
+              src={photoPreview}
+              alt="Preview"
+              style={{
+                maxWidth: '90vw', maxHeight: '85vh',
+                borderRadius: '12px',
+                boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+                display: 'block',
+              }}
+            />
+            <button
+              onClick={() => setPhotoPreview(null)}
+              style={{
+                position: 'absolute', top: '-14px', right: '-14px',
+                width: '32px', height: '32px', borderRadius: '50%',
+                background: '#ffffff', border: 'none', fontSize: '18px',
+                cursor: 'pointer', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', fontWeight: '700', color: '#051c2c',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.3)', lineHeight: 1,
+              }}
+            >
+              ×
+            </button>
           </div>
         </div>
       )}
@@ -928,7 +993,7 @@ const styles = {
   td:               { padding: '12px 16px', fontSize: '13px', color: '#051c2c', verticalAlign: 'middle' },
   empId:            { fontFamily: 'monospace', fontSize: '12px', color: '#5a6878' },
   nameCell:         { display: 'flex', alignItems: 'center', gap: '8px' },
-  avatar:           { width: '30px', height: '30px', borderRadius: '50%', background: '#051c2c', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: '700', flexShrink: 0 },
+  avatar:           { width: '30px', height: '30px', borderRadius: '50%', background: '#051c2c', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: '700', flexShrink: 0, overflow: 'hidden' },
   learnerNameBtn:   { background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: '#051c2c', padding: 0, fontFamily: 'Inter, sans-serif', textDecoration: 'underline', textDecorationColor: '#e8ecf0' },
   activeTick:       { background: '#16a34a', color: '#fff', borderRadius: '50%', width: '15px', height: '15px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px' },
   actionBtn:        { background: '#051c2c', border: 'none', borderRadius: '6px', padding: '5px 8px', cursor: 'pointer', fontSize: '13px' },
@@ -941,8 +1006,6 @@ const styles = {
   modalTitle:       { fontSize: '18px', fontWeight: '700', color: '#051c2c' },
   modalClose:       { background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#9baabb' },
   modalBody:        { padding: '20px 24px' },
-  photoUpload:      { display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' },
-  photoPlaceholder: { width: '80px', height: '80px', border: '2px dashed #e8ecf0', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', cursor: 'pointer' },
   formGrid:         { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' },
   formField:        { display: 'flex', flexDirection: 'column', gap: '5px' },
   fieldLabel:       { fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px' },
@@ -953,15 +1016,15 @@ const styles = {
   modalFooter:      { padding: '14px 24px', borderTop: '1px solid #e8ecf0', display: 'flex', justifyContent: 'flex-end', gap: '10px' },
   cancelBtn:        { padding: '9px 20px', background: 'none', border: '1.5px solid #e8ecf0', borderRadius: '8px', fontSize: '13px', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
   saveBtn:          { padding: '9px 24px', background: '#051c2c', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', color: '#ffffff', fontFamily: 'Inter, sans-serif' },
-  profileHeader:    { display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: '#f8f9fa', borderRadius: '12px', marginBottom: '16px', border: '1px solid #e8ecf0' },
+  profileHeader:    { display: 'flex', alignItems: 'center', gap: '20px', padding: '16px', background: '#f8f9fa', borderRadius: '12px', marginBottom: '16px', border: '1px solid #e8ecf0' },
   profileAvatar:    { width: '56px', height: '56px', borderRadius: '50%', background: '#051c2c', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: '700', flexShrink: 0 },
+  photoUploadBtn:   { position: 'absolute', bottom: 0, right: 0, width: '22px', height: '22px', borderRadius: '50%', background: '#051c2c', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', cursor: 'pointer', border: '2px solid #ffffff' },
   profileGrid:      { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' },
   profileInfoItem:  { display: 'flex', flexDirection: 'column', gap: '4px' },
   profileInfoLabel: { fontSize: '10px', fontWeight: '700', color: '#9baabb', textTransform: 'uppercase', letterSpacing: '0.5px' },
   profileInfoValue: { fontSize: '13px', fontWeight: '500', color: '#051c2c' },
   trainingStats:    { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '20px' },
   trainingStat:     { background: '#f8f9fa', borderRadius: '10px', padding: '14px', textAlign: 'center', border: '1px solid #e8ecf0' },
-  photoUploadBtn:   { position: 'absolute', bottom: 0, right: 0, width: '22px', height: '22px', borderRadius: '50%', background: '#051c2c', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', cursor: 'pointer', border: '2px solid #ffffff' },
   sectionLabel:     { fontSize: '12px', fontWeight: '700', color: '#051c2c', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px', paddingBottom: '8px', borderBottom: '1px solid #e8ecf0' },
 };
 

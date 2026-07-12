@@ -302,6 +302,23 @@ forgotPassword: (email) =>
     });
     return response.json();
   },
+  removeLearnerPhoto: (learnerId) =>
+    fetch(`${BASE_URL}/upload/learner/${learnerId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${getToken()}` },
+    }).then(r => r.json()),
+
+  removeTrainerPhoto: (trainerId) =>
+    fetch(`${BASE_URL}/upload/trainer/${trainerId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${getToken()}` },
+    }).then(r => r.json()),
+
+  removeCoursePhoto: (courseId) =>
+    fetch(`${BASE_URL}/upload/course/${courseId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${getToken()}` },
+    }).then(r => r.json()),
   // ── COMPLIANCE ────────────────────────────────────────────
   getCompliance: (year) =>
     fetch(`${BASE_URL}/compliance${year ? `?year=${year}` : ''}`, {
