@@ -7,13 +7,14 @@ function ReportsPage({ user }) {
 
   const isHod = user?.role === 'hod';
 
-  const [stats,       setStats]       = useState(null);
-  const [departments, setDepartments] = useState([]);
-  const [learners,    setLearners]    = useState([]);
-  const [courses,     setCourses]     = useState([]);
-  const [loading,     setLoading]     = useState(true);
-  const [exporting,   setExporting]   = useState(false);
-  const [drillDown,   setDrillDown]   = useState(null);
+  const [stats,        setStats]        = useState(null);
+  const [departments,  setDepartments]  = useState([]);
+  const [learners,     setLearners]     = useState([]);
+  const [courses,      setCourses]      = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [exporting,    setExporting]    = useState(false);
+  const [drillDown,    setDrillDown]    = useState(null);
+  const [drillLoading, setDrillLoading] = useState(false);
 
   const [startDate, setStartDate] = useState(
     new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0]
@@ -27,7 +28,9 @@ function ReportsPage({ user }) {
   }, []);
 
   useEffect(() => {
-    loadStats();
+    api.getReports({ startDate, endDate })
+      .then(s => setStats(s))
+      .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startDate, endDate]);
 
@@ -44,17 +47,10 @@ function ReportsPage({ user }) {
     }).catch(() => setLoading(false));
   };
 
-  const loadStats = () => {
-    api.getReports({ startDate, endDate })
-      .then(s => setStats(s))
-      .catch(() => {});
-  };
-
   const filteredCourses = courses.filter(c => {
     const d = c.end_date || c.start_date;
     if (!d) return true;
-    const date = new Date(d);
-    return date >= new Date(startDate) && date <= new Date(endDate);
+    return new Date(d) >= new Date(startDate) && new Date(d) <= new Date(endDate);
   });
 
   const handleExportExcel = async () => {
@@ -68,16 +64,16 @@ function ReportsPage({ user }) {
         ['Date Range', `${startDate} to ${endDate}`],
         [],
         ['METRIC', 'VALUE'],
-        ['Total Learners',             stats?.totalLearners    || 0],
-        ['Active Learners',            stats?.activeLearners   || 0],
-        ['Inactive Learners',          stats?.inactiveLearners || 0],
-        ['Total Courses',              filteredCourses.length],
-        ['Total Enrolled (records)',   stats?.totalEnrolled    || 0],
-        ['Total Attended (records)',   stats?.totalAttended    || 0],
-        ['Participation Rate',         (stats?.participationRate || 0) + '%'],
-        ['Total Training Hours',       stats?.totalTrainingHours || 0],
-        ['Learners Trained (unique)',  stats?.totalLearnersTrainedThisYear || 0],
-        ['Satisfaction Score',         (stats?.overallSatisfaction || 0) + '%'],
+        ['Total Learners',            stats?.totalLearners    || 0],
+        ['Active Learners',           stats?.activeLearners   || 0],
+        ['Inactive Learners',         stats?.inactiveLearners || 0],
+        ['Total Courses',             filteredCourses.length],
+        ['Total Enrolled (records)',  stats?.totalEnrolled    || 0],
+        ['Total Attended (records)',  stats?.totalAttended    || 0],
+        ['Participation Rate',        (stats?.participationRate || 0) + '%'],
+        ['Total Training Hours',      stats?.totalTrainingHours || 0],
+        ['Learners Trained (unique)', stats?.totalLearnersTrainedThisYear || 0],
+        ['Satisfaction Score',        (stats?.overallSatisfaction || 0) + '%'],
       ];
       const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
       wsSummary['!cols'] = [{ wch: 30 }, { wch: 20 }];
@@ -95,7 +91,7 @@ function ReportsPage({ user }) {
         return [
           c.title || '', c.training_type || 'Developmental', c.status || '',
           c.start_date ? new Date(c.start_date).toLocaleDateString('en-GB') : '',
-          c.end_date ? new Date(c.end_date).toLocaleDateString('en-GB') : '',
+          c.end_date   ? new Date(c.end_date).toLocaleDateString('en-GB')   : '',
           c.duration_hours || 0, enrolled, attended,
           enrolled > 0 ? Math.round(attended / enrolled * 100) + '%' : '—',
           +c.stars > 0 ? Math.round((+c.stars / 5) * 100) + '%' : '—',
@@ -113,24 +109,160 @@ function ReportsPage({ user }) {
     setExporting(false);
   };
 
+  // ── DRILL DOWN DATA ──
+  const getDrillDownData = () => ({
+    totalLearners: {
+      title: 'Total Learners',
+      headers: ['Name', 'Emp ID', 'Department', 'Status'],
+      rows: learners.map(l => [l.name, l.emp_id || '—', l.department_name || '—', l.status]),
+    },
+    activeLearners: {
+      title: 'Active Learners',
+      headers: ['Name', 'Emp ID', 'Department'],
+      rows: learners.filter(l => l.status === 'Active').map(l => [l.name, l.emp_id || '—', l.department_name || '—']),
+    },
+    inactiveLearners: {
+      title: 'Inactive Learners',
+      headers: ['Name', 'Emp ID', 'Department', 'Status'],
+      rows: learners.filter(l => l.status !== 'Active').map(l => [l.name, l.emp_id || '—', l.department_name || '—', l.status]),
+    },
+    totalCourses: {
+      title: 'Total Courses',
+      headers: ['Course', 'Training Type', 'Status'],
+      rows: filteredCourses.map(c => [c.title, c.training_type || 'Developmental', c.status]),
+    },
+    totalDepts: {
+      title: 'Total Departments',
+      headers: ['Department', 'Head', 'Learners'],
+      rows: departments.map(d => [d.name, d.hod || '—', d.learner_count || 0]),
+    },
+    emiratiLearners: {
+      title: 'Emirati Learners',
+      headers: ['Name', 'Emp ID', 'Department'],
+      rows: learners.filter(l => l.nationality === 'Emirati').map(l => [l.name, l.emp_id || '—', l.department_name || '—']),
+    },
+    trainingHours: {
+      title: 'Training Hours Breakdown',
+      headers: ['Course Name', 'Duration (hrs)', 'Attended', 'Total Hours'],
+      rows: filteredCourses
+        .filter(c => +c.duration_hours > 0)
+        .map(c => [
+          c.title,
+          c.duration_hours || 0,
+          c.attended_count || 0,
+          ((+c.duration_hours || 0) * (+c.attended_count || 0)) + 'h',
+        ])
+        .sort((a, b) => parseInt(b[3]) - parseInt(a[3])),
+    },
+    completedCourses: {
+      title: 'Completed Courses',
+      headers: ['Course', 'Training Type', 'Attended'],
+      rows: filteredCourses.filter(c => c.status === 'Completed')
+        .map(c => [c.title, c.training_type || 'Developmental', c.attended_count || 0]),
+    },
+    ongoingCourses: {
+      title: 'Ongoing Courses',
+      headers: ['Course', 'Training Type', 'Enrolled'],
+      rows: filteredCourses.filter(c => c.status === 'Ongoing')
+        .map(c => [c.title, c.training_type || 'Developmental', c.enrolled_count || 0]),
+    },
+    pendingCourses: {
+      title: 'Pending Courses',
+      headers: ['Course', 'Training Type', 'Max Learners'],
+      rows: filteredCourses.filter(c => c.status === 'Pending')
+        .map(c => [c.title, c.training_type || 'Developmental', c.max_learners || '—']),
+    },
+    satisfactionScore: {
+      title: 'Course Satisfaction Scores',
+      headers: ['Course', 'Stars', 'Satisfaction %'],
+      rows: filteredCourses
+        .filter(c => +c.stars > 0)
+        .sort((a, b) => b.stars - a.stars)
+        .map(c => [
+          c.title,
+          '★'.repeat(Math.round(+c.stars)) + '☆'.repeat(5 - Math.round(+c.stars)),
+          Math.round((+c.stars / 5) * 100) + '%',
+        ]),
+    },
+  });
+
+  const openDrillDown = async (key, overrideData) => {
+    // Override — used for dept row clicks with custom data
+    if (overrideData) {
+      setDrillDown(overrideData);
+      return;
+    }
+
+    const allData = getDrillDownData();
+
+    // Async drill-downs — need to fetch enrollment data
+    if (key === 'enrolled' || key === 'attended' || key === 'participationRate') {
+      const titles = {
+        enrolled:          'Enrolled Learners',
+        attended:          'Attended Learners',
+        participationRate: 'Participation Breakdown',
+      };
+      const headers = {
+        enrolled:          ['Learner Name', 'Course'],
+        attended:          ['Learner Name', 'Course'],
+        participationRate: ['Learner Name', 'Status'],
+      };
+
+      setDrillDown({ title: titles[key], headers: headers[key], rows: [] });
+      setDrillLoading(true);
+
+      try {
+        const allEnrollments = [];
+        for (const course of filteredCourses) {
+          try {
+            const enrollments = await api.getEnrollmentsByCourse(course.id);
+            if (Array.isArray(enrollments)) {
+              enrollments.forEach(e => {
+                allEnrollments.push({
+                  learnerName: e.name,
+                  courseName:  course.title,
+                  attended:    e.attended,
+                });
+              });
+            }
+          } catch (err) {}
+        }
+
+        let rows = [];
+        if (key === 'enrolled') {
+          rows = allEnrollments.map(e => [e.learnerName, e.courseName]);
+        } else if (key === 'attended') {
+          rows = allEnrollments
+            .filter(e => e.attended)
+            .map(e => [e.learnerName, e.courseName]);
+        } else if (key === 'participationRate') {
+          const attended = allEnrollments
+            .filter(e => e.attended)
+            .map(e => [e.learnerName, '✅ Attended']);
+          const absent = allEnrollments
+            .filter(e => !e.attended)
+            .map(e => [e.learnerName, '⏳ Enrolled (Absent)']);
+          rows = [...attended, ...absent];
+        }
+
+        setDrillDown({ title: titles[key], headers: headers[key], rows });
+      } catch (err) {
+        setDrillDown({ title: titles[key], headers: headers[key], rows: [] });
+      }
+      setDrillLoading(false);
+      return;
+    }
+
+    if (allData[key]) {
+      setDrillDown(allData[key]);
+    }
+  };
+
   if (loading || !stats) return (
     <div style={{ padding: '40px', textAlign: 'center', color: '#9baabb' }}>Loading reports...</div>
   );
 
   const mostActiveDepartments = stats.mostActiveDepartments || [];
-
-  const drillDownData = {
-    totalLearners:    { title: 'Total Learners',    rows: learners.map(l => [l.name, l.emp_id, l.department_name || '—', l.status]),                        headers: ['Name', 'Emp ID', 'Department', 'Status'] },
-    activeLearners:   { title: 'Active Learners',   rows: learners.filter(l => l.status === 'Active').map(l => [l.name, l.emp_id, l.department_name || '—']),  headers: ['Name', 'Emp ID', 'Department'] },
-    inactiveLearners: { title: 'Inactive Learners', rows: learners.filter(l => l.status !== 'Active').map(l => [l.name, l.emp_id, l.department_name || '—', l.status]), headers: ['Name', 'Emp ID', 'Department', 'Status'] },
-    totalCourses:     { title: 'Total Courses',     rows: filteredCourses.map(c => [c.title, c.training_type || 'Developmental', c.status]),                  headers: ['Course', 'Training Type', 'Status'] },
-    totalDepts:       { title: 'Total Departments', rows: departments.map(d => [d.name, d.hod || '—', d.learner_count || 0]),                                 headers: ['Department', 'Head', 'Learners'] },
-    emiratiLearners:  { title: 'Emirati Learners',  rows: learners.filter(l => l.nationality === 'Emirati').map(l => [l.name, l.emp_id, l.department_name || '—']), headers: ['Name', 'Emp ID', 'Department'] },
-  };
-
-  const openDrillDown = (key) => {
-    if (drillDownData[key]) setDrillDown(drillDownData[key]);
-  };
 
   return (
     <div style={styles.page}>
@@ -158,7 +290,7 @@ function ReportsPage({ user }) {
         </div>
       </div>
 
-      {/* ── ROW 1: PRIMARY STAT CARDS ── */}
+      {/* ── ROW 1 STAT CARDS ── */}
       <div style={styles.statGrid}>
         <StatCard icon="🎓" num={stats.totalLearners}    label="Total Learners"    color="#051C2C" onClick={() => openDrillDown('totalLearners')} />
         <StatCard icon="✅" num={stats.activeLearners}   label="Active Learners"   color="#A5C8D2" onClick={() => openDrillDown('activeLearners')} textDark />
@@ -167,20 +299,22 @@ function ReportsPage({ user }) {
       </div>
 
       <div style={styles.statGrid}>
-        <StatCard icon="📝" num={stats.totalEnrolled}        label="Enrolled"              color="#051C2C" sub="assigned to a course" />
-        <StatCard icon="🎯" num={stats.totalAttended}        label="Attended"              color="#A5C8D2" sub="completed training" textDark />
-        <StatCard icon="📊" num={stats.participationRate + '%'} label="Participation Rate" color="#AF5F46" sub="attended ÷ enrolled" />
-        <StatCard icon="⏱️" num={stats.totalTrainingHours + 'h'} label="Total Training Hours" color="#BEC8BE" textDark />
+        <StatCard icon="📝" num={stats.totalEnrolled}              label="Enrolled"              color="#051C2C" sub="click to see who"      onClick={() => openDrillDown('enrolled')} />
+        <StatCard icon="🎯" num={stats.totalAttended}              label="Attended"              color="#A5C8D2" sub="click to see who"      onClick={() => openDrillDown('attended')} textDark />
+        <StatCard icon="📊" num={stats.participationRate + '%'}    label="Participation Rate"    color="#AF5F46" sub="enrolled vs attended"  onClick={() => openDrillDown('participationRate')} />
+        <StatCard icon="⏱️" num={stats.totalTrainingHours + 'h'}  label="Total Training Hours"  color="#BEC8BE" sub="click for breakdown"   onClick={() => openDrillDown('trainingHours')} textDark />
       </div>
 
       {/* ── ROW 2 ── */}
       <div style={styles.row2}>
 
+        {/* Emirati Learners */}
         <div style={styles.card}>
           <div style={styles.cardTitle}>Emirati Learners</div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
-            <button onClick={() => openDrillDown('emiratiLearners')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-              <div style={{ position: 'relative' }}>
+            <button onClick={() => openDrillDown('emiratiLearners')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+              <div style={{ position: 'relative', width: '130px', height: '130px' }}>
                 <svg viewBox="0 0 130 130" style={{ width: '130px', height: '130px', transform: 'rotate(-90deg)' }}>
                   <circle cx="65" cy="65" r="54" fill="none" stroke="#e8ecf0" strokeWidth="12" />
                   <circle cx="65" cy="65" r="54" fill="none" stroke="#051c2c" strokeWidth="12"
@@ -193,53 +327,63 @@ function ReportsPage({ user }) {
               </div>
             </button>
             <div style={{ fontSize: '11px', color: '#9baabb' }}>
-              {stats.totalLearners > 0 ? Math.round((stats.emiratiLearners / stats.totalLearners) * 100) : 0}% of total learners
+              {stats.totalLearners > 0 ? Math.round((stats.emiratiLearners / stats.totalLearners) * 100) : 0}% of total · click to view
             </div>
           </div>
         </div>
 
+        {/* Course Status Breakdown */}
         <div style={styles.card}>
           <div style={styles.cardTitle}>Course Status Breakdown</div>
           <div style={{ fontSize: '32px', fontWeight: '800', color: '#051c2c', lineHeight: 1, marginBottom: '14px' }}>
             {stats.totalCourses}
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {[['Completed', stats.completedCourses, '#051c2c'], ['Ongoing', stats.ongoingCourses, '#5a6878'], ['Pending', stats.pendingCourses, '#b6bdc2']].map(([l, v, c]) => (
-              <div key={l} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {[
+              ['Completed', stats.completedCourses, '#051c2c', 'completedCourses'],
+              ['Ongoing',   stats.ongoingCourses,   '#5a6878', 'ongoingCourses'],
+              ['Pending',   stats.pendingCourses,   '#b6bdc2', 'pendingCourses'],
+            ].map(([l, v, c, key]) => (
+              <button key={l} onClick={() => openDrillDown(key)}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', borderBottom: '1px solid #f0f2f4', cursor: 'pointer', padding: '6px 0', width: '100%', textAlign: 'left', fontFamily: 'Inter, sans-serif' }}>
                 <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: c, flexShrink: 0 }} />
                 <span style={{ fontSize: '12px', color: '#5a6878', flex: 1 }}>{l}</span>
-                <span style={{ fontSize: '13px', fontWeight: '700', color: '#051c2c' }}>{v}</span>
-              </div>
+                <span style={{ fontSize: '13px', fontWeight: '700', color: '#051c2c' }}>{v} →</span>
+              </button>
             ))}
           </div>
         </div>
 
+        {/* Satisfaction Score */}
         <div style={styles.card}>
           <div style={styles.cardTitle}>Satisfaction Score</div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', padding: '6px 0' }}>
-            <div style={{ position: 'relative', width: '110px', height: '110px' }}>
-              <svg viewBox="0 0 110 110" style={{ width: '110px', height: '110px', transform: 'rotate(-90deg)' }}>
-                <circle cx="55" cy="55" r="46" fill="none" stroke="#e8ecf0" strokeWidth="10" />
-                <circle cx="55" cy="55" r="46" fill="none" stroke="#051c2c" strokeWidth="10"
-                  strokeDasharray={`${2 * Math.PI * 46 * stats.overallSatisfaction / 100} ${2 * Math.PI * 46}`}
-                  strokeLinecap="round" />
-              </svg>
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontSize: '20px', fontWeight: '800', color: '#051c2c', lineHeight: 1 }}>{stats.overallSatisfaction}%</span>
-                <span style={{ fontSize: '12px', color: '#c8973a', marginTop: '2px' }}>{'★'.repeat(Math.round(stats.overallSatisfaction / 20))}</span>
+            <button onClick={() => openDrillDown('satisfactionScore')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+              <div style={{ position: 'relative', width: '110px', height: '110px' }}>
+                <svg viewBox="0 0 110 110" style={{ width: '110px', height: '110px', transform: 'rotate(-90deg)' }}>
+                  <circle cx="55" cy="55" r="46" fill="none" stroke="#e8ecf0" strokeWidth="10" />
+                  <circle cx="55" cy="55" r="46" fill="none" stroke="#051c2c" strokeWidth="10"
+                    strokeDasharray={`${2 * Math.PI * 46 * stats.overallSatisfaction / 100} ${2 * Math.PI * 46}`}
+                    strokeLinecap="round" />
+                </svg>
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontSize: '20px', fontWeight: '800', color: '#051c2c', lineHeight: 1 }}>{stats.overallSatisfaction}%</span>
+                  <span style={{ fontSize: '12px', color: '#c8973a', marginTop: '2px' }}>{'★'.repeat(Math.round(stats.overallSatisfaction / 20))}</span>
+                </div>
               </div>
-            </div>
-            <div style={{ fontSize: '11px', color: '#9baabb' }}>Avg of all rated courses in range</div>
+            </button>
+            <div style={{ fontSize: '11px', color: '#9baabb' }}>Click to see course breakdown</div>
           </div>
         </div>
 
+        {/* Total Departments */}
         <div style={styles.card}>
-          <button onClick={() => openDrillDown('totalDepts')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: '100%', textAlign: 'left' }}>
-            <div style={styles.cardTitle}>
-              {isHod ? 'My Department' : 'Total Departments'}
-            </div>
+          <button onClick={() => openDrillDown('totalDepts')}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: '100%', textAlign: 'left' }}>
+            <div style={styles.cardTitle}>{isHod ? 'My Department' : 'Total Departments'}</div>
             <div style={{ fontSize: '32px', fontWeight: '800', color: '#051c2c', lineHeight: 1, marginBottom: '8px' }}>
-              {stats.totalDepts}
+              {stats.totalDepts} →
             </div>
           </button>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '90px', overflowY: 'auto' }}>
@@ -257,25 +401,39 @@ function ReportsPage({ user }) {
       {/* ── ROW 3 ── */}
       <div style={styles.row3}>
 
+        {/* Most Active Departments */}
         <div style={styles.card}>
-          <div style={styles.cardTitle}>
-            {isHod ? 'My Department Activity' : 'Most Active Departments'}
-          </div>
-          <div style={{ fontSize: '10px', color: '#9baabb', marginBottom: '12px' }}>Sorted by attended courses</div>
+          <div style={styles.cardTitle}>{isHod ? 'My Department Activity' : 'Most Active Departments'}</div>
+          <div style={{ fontSize: '10px', color: '#9baabb', marginBottom: '12px' }}>Click a department to see its learners</div>
           {mostActiveDepartments.slice(0, 6).map((d, i) => (
-            <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 0', borderBottom: '1px solid #f0f2f4' }}>
+            <button key={d.id}
+              onClick={() => openDrillDown(null, {
+                title:   `${d.name} — Learners`,
+                headers: ['Name', 'Emp ID', 'Status'],
+                rows:    learners
+                  .filter(l => l.department_name === d.name)
+                  .map(l => [l.name, l.emp_id || '—', l.status]),
+              })}
+              style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 0', borderBottom: '1px solid #f0f2f4', background: 'none', border: 'none', borderBottom: '1px solid #f0f2f4', cursor: 'pointer', width: '100%', textAlign: 'left', fontFamily: 'Inter, sans-serif' }}>
               <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: i === 0 ? '#fef9c3' : '#f2f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '700', color: i === 0 ? '#a16207' : '#5a6878', flexShrink: 0 }}>
                 {i + 1}
               </span>
-              <span style={{ fontSize: '13px', fontWeight: '500', color: '#051c2c', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.name}</span>
-              <span style={{ fontSize: '11px', fontWeight: '700', color: '#15803d' }}>{d.attended_count} attended</span>
-            </div>
+              <span style={{ fontSize: '13px', fontWeight: '500', color: '#051c2c', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {d.name}
+              </span>
+              <span style={{ fontSize: '11px', fontWeight: '700', color: '#15803d' }}>
+                {d.attended_count} attended →
+              </span>
+            </button>
           ))}
           {mostActiveDepartments.length === 0 && (
-            <div style={{ padding: '20px', textAlign: 'center', color: '#9baabb', fontSize: '13px' }}>No department activity in this range.</div>
+            <div style={{ padding: '20px', textAlign: 'center', color: '#9baabb', fontSize: '13px' }}>
+              No department activity in this range.
+            </div>
           )}
         </div>
 
+        {/* Satisfaction Trend */}
         <div style={{ ...styles.card, flex: 2 }}>
           <div style={styles.cardTitle}>Satisfaction Score Trend</div>
           {(stats.satisfactionTrend || []).some(d => d.score > 0) ? (
@@ -291,42 +449,56 @@ function ReportsPage({ user }) {
 
       {/* ── DRILL DOWN POPUP ── */}
       {drillDown && (
-        <div style={styles.overlay} onClick={() => setDrillDown(null)}>
+        <div style={styles.overlay} onClick={() => { setDrillDown(null); setDrillLoading(false); }}>
           <div style={styles.modal} onClick={e => e.stopPropagation()}>
             <div style={styles.modalHeader}>
               <span style={styles.modalTitle}>{drillDown.title}</span>
-              <button style={styles.modalClose} onClick={() => setDrillDown(null)}>×</button>
+              <button style={styles.modalClose} onClick={() => { setDrillDown(null); setDrillLoading(false); }}>×</button>
             </div>
             <div style={styles.modalBody}>
-              <div style={{ fontSize: '12px', color: '#9baabb', marginBottom: '12px' }}>
-                {drillDown.rows.length} record{drillDown.rows.length !== 1 ? 's' : ''}
-              </div>
-              <div style={{ overflowX: 'auto', maxHeight: '420px', overflowY: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ background: '#f8f9fa', borderBottom: '1px solid #e8ecf0' }}>
-                      {drillDown.headers.map(h => (
-                        <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10px', fontWeight: '700', color: '#9baabb', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {drillDown.rows.map((row, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid #f0f2f4' }}>
-                        {row.map((cell, j) => (
-                          <td key={j} style={{ padding: '9px 12px', fontSize: '13px', color: '#051c2c' }}>{cell}</td>
+              {drillLoading ? (
+                <div style={{ padding: '60px', textAlign: 'center', color: '#9baabb', fontSize: '14px' }}>
+                  ⏳ Loading data...
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize: '12px', color: '#9baabb', marginBottom: '12px' }}>
+                    {drillDown.rows.length} record{drillDown.rows.length !== 1 ? 's' : ''}
+                  </div>
+                  <div style={{ overflowX: 'auto', maxHeight: '420px', overflowY: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ background: '#f8f9fa', borderBottom: '1px solid #e8ecf0' }}>
+                          {drillDown.headers.map(h => (
+                            <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10px', fontWeight: '700', color: '#9baabb', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {drillDown.rows.map((row, i) => (
+                          <tr key={i} style={{ borderBottom: '1px solid #f0f2f4' }}>
+                            {row.map((cell, j) => (
+                              <td key={j} style={{ padding: '9px 12px', fontSize: '13px', color: '#051c2c' }}>
+                                {cell}
+                              </td>
+                            ))}
+                          </tr>
                         ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {drillDown.rows.length === 0 && (
-                  <div style={{ padding: '30px', textAlign: 'center', color: '#9baabb', fontSize: '13px' }}>No records found.</div>
-                )}
-              </div>
+                      </tbody>
+                    </table>
+                    {drillDown.rows.length === 0 && (
+                      <div style={{ padding: '30px', textAlign: 'center', color: '#9baabb', fontSize: '13px' }}>
+                        No records found.
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
             <div style={styles.modalFooter}>
-              <button style={styles.cancelBtn} onClick={() => setDrillDown(null)}>Close</button>
+              <button style={styles.cancelBtn} onClick={() => { setDrillDown(null); setDrillLoading(false); }}>Close</button>
             </div>
           </div>
         </div>
@@ -362,12 +534,16 @@ function MiniLineChart({ data }) {
         {data.map((d, i) => {
           const x = (i / (data.length - 1)) * 100;
           const y = 100 - (d.score / 100) * 100;
-          return d.score > 0 ? <circle key={i} cx={x} cy={y} r="1.6" fill="#051c2c" vectorEffect="non-scaling-stroke" /> : null;
+          return d.score > 0
+            ? <circle key={i} cx={x} cy={y} r="1.6" fill="#051c2c" vectorEffect="non-scaling-stroke" />
+            : null;
         })}
       </svg>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
         {data.map((d, i) => (
-          <span key={i} style={{ fontSize: '10px', color: '#9baabb', flex: 1, textAlign: 'center' }}>{d.month || d.quarter}</span>
+          <span key={i} style={{ fontSize: '10px', color: '#9baabb', flex: 1, textAlign: 'center' }}>
+            {d.month || d.quarter}
+          </span>
         ))}
       </div>
     </div>
