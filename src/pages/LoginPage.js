@@ -1,232 +1,256 @@
 import React, { useState } from 'react';
 import api from '../api';
-import { FaUser, FaLock, FaEye, FaEyeSlash } from 'react-icons/fa';
 
 function LoginPage({ onLogin }) {
 
-  const [email,    setEmail]    = useState('');
-  const [password, setPassword] = useState('');
-  const [showPass, setShowPass] = useState(false);
-  const [error,    setError]    = useState('');
-  const [loading,  setLoading]  = useState(false);
+  const [view,        setView]        = useState('login'); // 'login' | 'forgot' | 'forgot-sent'
+  const [email,       setEmail]       = useState('');
+  const [password,    setPassword]    = useState('');
+  const [resetEmail,  setResetEmail]  = useState('');
+  const [resetResult, setResetResult] = useState(null);
+  const [error,       setError]       = useState('');
+  const [loading,     setLoading]     = useState(false);
+  const [showPass,    setShowPass]    = useState(false);
 
-  const handleLogin = async () => {
-  setError('');
-  if (!email || !password) {
-    setError('Please enter your email and password.');
-    return;
-  }
-  if (!email.endsWith('@rakproperties.ae')) {
-    setError('Please use your @rakproperties.ae email address.');
-    return;
-  }
-  setLoading(true);
-  try {
-    const data = await api.login(email, password);
-    if (data.error) {
-      setError(data.error);
-      setLoading(false);
-    } else {
-      localStorage.setItem('token', data.token);
-      onLogin(data.user);
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const data = await api.login(email, password);
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+        onLogin(data.user);
+      } else {
+        setError(data.error || 'Invalid credentials. Please try again.');
+      }
+    } catch (err) {
+      setError('Cannot connect to server. Please try again.');
     }
-  } catch (err) {
-    setError('Cannot connect to server. Please try again.');
     setLoading(false);
-  }
-};
+  };
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter') handleLogin();
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const data = await api.forgotPassword(resetEmail);
+      if (data.resetUrl) {
+        setResetResult(data);
+        setView('forgot-sent');
+      } else {
+        setError(data.error || 'Could not process request.');
+      }
+    } catch (err) {
+      setError('Cannot connect to server. Please try again.');
+    }
+    setLoading(false);
   };
 
   return (
     <div style={styles.page}>
+      <div style={styles.card}>
 
-      {/* LEFT SIDE */}
-      <div style={styles.leftPanel}>
-
-        <div style={styles.logoRow}>
-          <img src="/rak-logo.svg" alt="RAK Properties" style={{ width: '42px', height: 'auto' }} />
-          <span style={styles.logoTitle}>Learning Management System</span>
+        {/* ── LOGO HEADER ── */}
+        <div style={styles.header}>
+          <div style={styles.logoBox}>
+            <div style={styles.logoIcon}>◈</div>
+            <div>
+              <div style={styles.logoTitle}>RAK Properties</div>
+              <div style={styles.logoSub}>Learning Management System</div>
+            </div>
+          </div>
         </div>
 
-        <div style={styles.formBox}>
-          <h1 style={styles.heading}>Log in</h1>
+        <div style={styles.body}>
 
-          {error && <div style={styles.errorBox}>{error}</div>}
+          {/* ── LOGIN VIEW ── */}
+          {view === 'login' && (
+            <>
+              <div style={styles.welcomeText}>Welcome back</div>
+              <div style={styles.welcomeSub}>Sign in to your account to continue</div>
 
-          {/* Email */}
-          <div style={styles.inputWrapper}>
-            <div style={styles.inputIcon}><FaUser size={13} color="#9baabb" /></div>
-            <input
-              type="email"
-              placeholder="Username"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={handleKeyDown}
-              style={styles.input}
-            />
-          </div>
+              {error && (
+                <div style={styles.errorBox}>{error}</div>
+              )}
 
-          {/* Password */}
-          <div style={styles.inputWrapper}>
-            <div style={styles.inputIcon}><FaLock size={13} color="#9baabb" /></div>
-            <input
-              type={showPass ? 'text' : 'password'}
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={handleKeyDown}
-              style={{ ...styles.input, paddingRight: '42px' }}
-            />
-            <button style={styles.eyeBtn} onClick={() => setShowPass(!showPass)} tabIndex={-1}>
-              {showPass ? <FaEyeSlash size={14} color="#9baabb" /> : <FaEye size={14} color="#9baabb" />}
-            </button>
-          </div>
+              <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={styles.formField}>
+                  <label style={styles.fieldLabel}>Email Address</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    placeholder="name@rakproperties.ae"
+                    required
+                    style={styles.input}
+                  />
+                </div>
 
-          {/* Remember Me + Forgot Password */}
-          <div style={styles.optionsRow}>
-            <label style={styles.rememberMe}>
-              <input type="checkbox" style={{ marginRight: '6px', accentColor: '#051c2c' }} />
-              Remember Me
-            </label>
-            <button style={styles.forgotBtn}>Forgot Password?</button>
-          </div>
+                <div style={styles.formField}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={styles.fieldLabel}>Password</label>
+                    <button
+                      type="button"
+                      onClick={() => { setView('forgot'); setError(''); setResetEmail(email); }}
+                      style={styles.forgotLink}
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showPass ? 'text' : 'password'}
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      placeholder="Enter your password"
+                      required
+                      style={styles.input}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPass(!showPass)}
+                      style={styles.showPassBtn}
+                    >
+                      {showPass ? '🙈' : '👁'}
+                    </button>
+                  </div>
+                </div>
 
-          {/* Login Button */}
-          <button
-            style={{ ...styles.loginBtn, opacity: loading ? 0.7 : 1 }}
-            onClick={handleLogin}
-            disabled={loading}
-          >
-            {loading ? 'Logging in...' : 'Log in'}
-          </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  style={{ ...styles.submitBtn, opacity: loading ? 0.7 : 1 }}
+                >
+                  {loading ? 'Signing in...' : 'Sign In'}
+                </button>
+              </form>
+
+              <div style={styles.domainNote}>
+                🔒 Only @rakproperties.ae email addresses are permitted
+              </div>
+            </>
+          )}
+
+          {/* ── FORGOT PASSWORD VIEW ── */}
+          {view === 'forgot' && (
+            <>
+              <button
+                onClick={() => { setView('login'); setError(''); }}
+                style={styles.backBtn}
+              >
+                ← Back to Sign In
+              </button>
+
+              <div style={styles.welcomeText}>Reset Password</div>
+              <div style={styles.welcomeSub}>
+                Enter your email address and we'll generate a password reset link.
+              </div>
+
+              {error && (
+                <div style={styles.errorBox}>{error}</div>
+              )}
+
+              <form onSubmit={handleForgotPassword} style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '20px' }}>
+                <div style={styles.formField}>
+                  <label style={styles.fieldLabel}>Email Address</label>
+                  <input
+                    type="email"
+                    value={resetEmail}
+                    onChange={e => setResetEmail(e.target.value)}
+                    placeholder="name@rakproperties.ae"
+                    required
+                    style={styles.input}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  style={{ ...styles.submitBtn, opacity: loading ? 0.7 : 1 }}
+                >
+                  {loading ? 'Processing...' : 'Generate Reset Link'}
+                </button>
+              </form>
+
+              <div style={styles.domainNote}>
+                🔒 Only @rakproperties.ae email addresses are permitted
+              </div>
+            </>
+          )}
+
+          {/* ── FORGOT PASSWORD SENT VIEW ── */}
+          {view === 'forgot-sent' && resetResult && (
+            <>
+              <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                <div style={{ fontSize: '48px', marginBottom: '12px' }}>🔑</div>
+                <div style={styles.welcomeText}>Reset Link Generated</div>
+                <div style={styles.welcomeSub}>
+                  Share this link with <strong>{resetResult.email}</strong> so they can set a new password.
+                </div>
+              </div>
+
+              <div style={styles.resetLinkBox}>
+                <div style={{ fontSize: '11px', fontWeight: '700', color: '#9baabb', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
+                  Password Reset Link
+                </div>
+                <div style={styles.resetLinkText}>
+                  {resetResult.resetUrl}
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(resetResult.resetUrl);
+                    alert('Link copied to clipboard!');
+                  }}
+                  style={styles.copyBtn}
+                >
+                  📋 Copy Link
+                </button>
+              </div>
+
+              <div style={{ background: '#fef9c3', border: '1px solid #fde68a', borderRadius: '8px', padding: '12px 14px', fontSize: '12px', color: '#92400e', marginBottom: '20px' }}>
+                ⚠️ This link expires in <strong>1 hour</strong>. Share it securely via email or messaging.
+              </div>
+
+              <button
+                onClick={() => { setView('login'); setError(''); setResetEmail(''); setResetResult(null); }}
+                style={styles.submitBtn}
+              >
+                Back to Sign In
+              </button>
+            </>
+          )}
 
         </div>
       </div>
-
-      {/* RIGHT SIDE — branded panel */}
-      <div style={styles.rightPanel}>
-        <div style={styles.shape1} />
-        <div style={styles.shape2} />
-        <div style={styles.shape3} />
-        <div style={styles.rightLogoWrap}>
-          <img src="/rak-logo.svg" alt="RAK Properties" style={{ width: '160px', height: 'auto' }} />
-        </div>
-      </div>
-
     </div>
   );
 }
 
 const styles = {
-  page: {
-    display: 'flex',
-    height: '100vh',
-    width: '100vw',
-    background: '#f0f2f5',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  leftPanel: {
-    width: '520px',
-    minHeight: '560px',
-    background: '#ffffff',
-    borderRadius: '20px 0 0 20px',
-    padding: '40px 48px',
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'center',
-    boxShadow: '0 20px 60px rgba(5,28,44,0.12)',
-  },
-  rightPanel: {
-    width: '320px',
-    minHeight: '560px',
-    background: 'linear-gradient(160deg, #0a2d45 0%, #051c2c 60%, #0d3b5e 100%)',
-    borderRadius: '0 20px 20px 0',
-    position: 'relative',
-    overflow: 'hidden',
-    display: 'flex',
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    paddingBottom: '40px',
-    boxShadow: '0 20px 60px rgba(5,28,44,0.2)',
-  },
-  shape1: {
-    position: 'absolute', width: '260px', height: '260px',
-    borderRadius: '50%', background: 'rgba(255,255,255,0.05)',
-    top: '-60px', right: '-60px',
-  },
-  shape2: {
-    position: 'absolute', width: '200px', height: '200px',
-    borderRadius: '50%', background: 'rgba(255,255,255,0.04)',
-    top: '80px', left: '-40px',
-  },
-  shape3: {
-    position: 'absolute', width: '150px', height: '150px',
-    borderRadius: '50%', background: 'rgba(255,255,255,0.06)',
-    bottom: '100px', right: '-30px',
-  },
-  rightLogoWrap: {
-    position: 'relative', zIndex: 1,
-  },
-  logoRow: {
-    display: 'flex', alignItems: 'center',
-    gap: '12px', marginBottom: '48px',
-  },
-  logoTitle: {
-    fontSize: '16px', fontWeight: '600',
-    color: '#051c2c', letterSpacing: '-0.2px',
-  },
-  formBox: { width: '100%' },
-  heading: {
-    fontSize: '32px', fontWeight: '700',
-    color: '#051c2c', marginBottom: '28px', letterSpacing: '-0.5px',
-  },
-  errorBox: {
-    background: '#fce8e8', border: '1px solid #f5c0c0',
-    borderRadius: '8px', padding: '10px 14px',
-    fontSize: '13px', color: '#9b2020', marginBottom: '16px',
-  },
-  inputWrapper: { position: 'relative', marginBottom: '14px' },
-  inputIcon: {
-    position: 'absolute', left: '14px', top: '50%',
-    transform: 'translateY(-50%)', pointerEvents: 'none',
-  },
-  input: {
-    width: '100%', padding: '13px 14px 13px 40px',
-    border: '1.5px solid #e0e4ea', borderRadius: '10px',
-    fontSize: '14px', outline: 'none', background: '#f5f7fa',
-    color: '#051c2c', fontFamily: 'Inter, sans-serif',
-  },
-  eyeBtn: {
-    position: 'absolute', right: '12px', top: '50%',
-    transform: 'translateY(-50%)', background: 'none',
-    border: 'none', cursor: 'pointer', padding: '4px',
-    display: 'flex', alignItems: 'center',
-  },
-  optionsRow: {
-    display: 'flex', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: '24px', marginTop: '4px',
-  },
-  rememberMe: {
-    fontSize: '13px', color: '#5a6878',
-    display: 'flex', alignItems: 'center',
-    cursor: 'pointer', fontStyle: 'italic',
-  },
-  forgotBtn: {
-    background: 'none', border: 'none', fontSize: '13px',
-    color: '#5a6878', cursor: 'pointer', fontStyle: 'italic',
-    fontFamily: 'Inter, sans-serif',
-  },
-  loginBtn: {
-    width: '100%', padding: '14px',
-    background: '#051c2c', color: '#ffffff',
-    border: 'none', borderRadius: '50px',
-    fontSize: '15px', fontWeight: '600',
-    cursor: 'pointer', fontFamily: 'Inter, sans-serif',
-  },
+  page:         { minHeight: '100vh', background: '#f2f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'Inter, sans-serif' },
+  card:         { background: '#ffffff', borderRadius: '20px', width: '100%', maxWidth: '420px', boxShadow: '0 24px 64px rgba(5,28,44,0.12)', overflow: 'hidden' },
+  header:       { background: '#051c2c', padding: '28px 32px' },
+  logoBox:      { display: 'flex', alignItems: 'center', gap: '14px' },
+  logoIcon:     { fontSize: '32px', color: '#A5C8D2' },
+  logoTitle:    { fontSize: '18px', fontWeight: '700', color: '#ffffff' },
+  logoSub:      { fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginTop: '2px', letterSpacing: '0.5px' },
+  body:         { padding: '32px' },
+  welcomeText:  { fontSize: '22px', fontWeight: '700', color: '#051c2c', marginBottom: '6px' },
+  welcomeSub:   { fontSize: '13px', color: '#9baabb', marginBottom: '24px', lineHeight: 1.5 },
+  errorBox:     { background: '#fee2e2', color: '#991b1b', padding: '10px 14px', borderRadius: '8px', fontSize: '13px', marginBottom: '16px', border: '1px solid #fca5a5' },
+  formField:    { display: 'flex', flexDirection: 'column' },
+  fieldLabel:   { fontSize: '12px', fontWeight: '600', color: '#5a6878', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  input:        { padding: '12px 14px', border: '1.5px solid #e8ecf0', borderRadius: '10px', fontSize: '14px', outline: 'none', background: '#f8f9fa', color: '#051c2c', fontFamily: 'Inter, sans-serif', width: '100%', boxSizing: 'border-box' },
+  forgotLink:   { background: 'none', border: 'none', fontSize: '12px', color: '#0369a1', cursor: 'pointer', fontFamily: 'Inter, sans-serif', textDecoration: 'underline', padding: 0 },
+  showPassBtn:  { position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', padding: 0 },
+  submitBtn:    { padding: '14px', background: '#051c2c', color: '#ffffff', border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Inter, sans-serif', marginTop: '4px' },
+  domainNote:   { marginTop: '20px', padding: '10px 14px', background: '#f8f9fa', borderRadius: '8px', fontSize: '11px', color: '#9baabb', textAlign: 'center', border: '1px solid #e8ecf0' },
+  backBtn:      { background: 'none', border: 'none', color: '#0369a1', fontSize: '13px', cursor: 'pointer', fontFamily: 'Inter, sans-serif', padding: 0, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '4px' },
+  resetLinkBox: { background: '#f8f9fa', border: '1px solid #e8ecf0', borderRadius: '10px', padding: '16px', marginBottom: '16px' },
+  resetLinkText:{ fontSize: '11px', color: '#051c2c', wordBreak: 'break-all', fontFamily: 'monospace', background: '#ffffff', border: '1px solid #e8ecf0', borderRadius: '6px', padding: '10px 12px', marginBottom: '10px' },
+  copyBtn:      { background: '#051c2c', color: '#ffffff', border: 'none', borderRadius: '6px', padding: '8px 16px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
 };
 
 export default LoginPage;

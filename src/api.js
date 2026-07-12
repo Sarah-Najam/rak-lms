@@ -31,7 +31,15 @@ const api = {
 
   verifyInvite: (token) =>
     fetch(`${BASE_URL}/auth/verify-invite/${token}`).then(r => r.json()),
+forgotPassword: (email) =>
+    fetch(`${BASE_URL}/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    }).then(r => r.json()),
 
+  verifyReset: (token) =>
+    fetch(`${BASE_URL}/auth/verify-reset/${token}`).then(r => r.json()),
   setPassword: (token, password) =>
     fetch(`${BASE_URL}/auth/set-password`, {
       method: 'POST',
