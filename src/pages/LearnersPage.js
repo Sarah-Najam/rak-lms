@@ -61,7 +61,7 @@ function LearnersPage({ user }) {
   const emptyForm = {
     empId: '', name: '', nationality: '', designation: '',
     department: '', email: '', gender: '', status: 'Active',
-    learnerLevel: '', age: '',
+    learnerLevel: '', dateOfBirth: '', dateOfJoining: '',
   };
   const [form,     setForm]     = useState(emptyForm);
   const [editForm, setEditForm] = useState(emptyForm);
@@ -165,16 +165,17 @@ function LearnersPage({ user }) {
     if (!form.empId || !form.name) { alert('Emp ID and Name are required.'); return; }
     try {
       const newLearner = await api.addLearner({
-        emp_id:        form.empId,
-        name:          form.name,
-        gender:        form.gender,
-        nationality:   form.nationality,
-        department_id: form.department ? parseInt(form.department) : null,
-        email:         form.email,
-        designation:   form.designation,
-        status:        form.status,
-        learner_level: form.learnerLevel,
-        age:           +form.age || null,
+        emp_id:          form.empId,
+        name:            form.name,
+        gender:          form.gender,
+        nationality:     form.nationality,
+        department_id:   form.department ? parseInt(form.department) : null,
+        email:           form.email,
+        designation:     form.designation,
+        status:          form.status,
+        learner_level:   form.learnerLevel,
+        date_of_birth:   form.dateOfBirth || null,
+        date_of_joining: form.dateOfJoining || null,
       });
       if (newLearner.id) {
         loadLearners();
@@ -192,15 +193,16 @@ function LearnersPage({ user }) {
     if (!editForm.name) { alert('Name is required.'); return; }
     try {
       const updated = await api.updateLearner(selected.id, {
-        name:          editForm.name,
-        gender:        editForm.gender,
-        nationality:   editForm.nationality,
-        department_id: editForm.department ? parseInt(editForm.department) : null,
-        email:         editForm.email,
-        designation:   editForm.designation,
-        status:        editForm.status,
-        learner_level: editForm.learnerLevel,
-        age:           +editForm.age || null,
+        name:            editForm.name,
+        gender:          editForm.gender,
+        nationality:     editForm.nationality,
+        department_id:   editForm.department ? parseInt(editForm.department) : null,
+        email:           editForm.email,
+        designation:     editForm.designation,
+        status:          editForm.status,
+        learner_level:   editForm.learnerLevel,
+        date_of_birth:   editForm.dateOfBirth || null,
+        date_of_joining: editForm.dateOfJoining || null,
       });
       if (updated.id) {
         loadLearners();
@@ -217,16 +219,17 @@ function LearnersPage({ user }) {
   const openEdit = (learner) => {
     setSelected(learner);
     setEditForm({
-      empId:        learner.emp_id        || '',
-      name:         learner.name          || '',
-      nationality:  learner.nationality   || '',
-      designation:  learner.designation   || '',
-      department:   learner.department_id || '',
-      email:        learner.email         || '',
-      gender:       learner.gender        || '',
-      status:       learner.status        || 'Active',
-      learnerLevel: learner.learner_level || '',
-      age:          learner.age           || '',
+      empId:          learner.emp_id          || '',
+      name:           learner.name            || '',
+      nationality:    learner.nationality     || '',
+      designation:    learner.designation     || '',
+      department:     learner.department_id   || '',
+      email:          learner.email           || '',
+      gender:         learner.gender          || '',
+      status:         learner.status          || 'Active',
+      learnerLevel:   learner.learner_level   || '',
+      dateOfBirth:    learner.date_of_birth   ? learner.date_of_birth.split('T')[0]   : '',
+      dateOfJoining:  learner.date_of_joining ? learner.date_of_joining.split('T')[0] : '',
     });
     setShowEdit(true);
     setActionMenu(null);
@@ -281,15 +284,16 @@ function LearnersPage({ user }) {
     const newStatus = learner.status === 'Active' ? 'Resigned/Terminated' : 'Active';
     try {
       await api.updateLearner(learner.id, {
-        name:          learner.name,
-        gender:        learner.gender,
-        nationality:   learner.nationality,
-        department_id: learner.department_id,
-        email:         learner.email,
-        designation:   learner.designation,
-        status:        newStatus,
-        learner_level: learner.learner_level,
-        age:           learner.age,
+        name:            learner.name,
+        gender:          learner.gender,
+        nationality:     learner.nationality,
+        department_id:   learner.department_id,
+        email:           learner.email,
+        designation:     learner.designation,
+        status:          newStatus,
+        learner_level:   learner.learner_level,
+        date_of_birth:   learner.date_of_birth,
+        date_of_joining: learner.date_of_joining,
       });
       loadLearners();
     } catch (err) {
@@ -558,7 +562,8 @@ function LearnersPage({ user }) {
                 <FormField label="Email"         value={form.email}        onChange={v => setForm({...form, email: v})}        placeholder="name@rakprop.ae" type="email" />
                 <FormField label="Gender"        value={form.gender}       onChange={v => setForm({...form, gender: v})}       type="select" options={['Male', 'Female']} />
                 <FormField label="Learner Level" value={form.learnerLevel} onChange={v => setForm({...form, learnerLevel: v})} type="select" options={['Entry', 'Mid', 'Senior']} />
-                <FormField label="Age"           value={form.age}          onChange={v => setForm({...form, age: v})}          placeholder="e.g. 28" type="number" />
+                <FormField label="Date of Birth"    value={form.dateOfBirth}    onChange={v => setForm({...form, dateOfBirth: v})}    type="date" />
+                <FormField label="Date of Joining"  value={form.dateOfJoining}  onChange={v => setForm({...form, dateOfJoining: v})}  type="date" />
               </div>
               <div style={styles.statusRow}>
                 <span style={styles.fieldLabel}>Employment Status</span>
@@ -601,7 +606,8 @@ function LearnersPage({ user }) {
                 <FormField label="Email"         value={editForm.email}        onChange={v => setEditForm({...editForm, email: v})}        placeholder="name@rakprop.ae" type="email" />
                 <FormField label="Gender"        value={editForm.gender}       onChange={v => setEditForm({...editForm, gender: v})}       type="select" options={['Male', 'Female']} />
                 <FormField label="Learner Level" value={editForm.learnerLevel} onChange={v => setEditForm({...editForm, learnerLevel: v})} type="select" options={['Entry', 'Mid', 'Senior']} />
-                <FormField label="Age"           value={editForm.age}          onChange={v => setEditForm({...editForm, age: v})}          placeholder="e.g. 28" type="number" />
+                <FormField label="Date of Birth"    value={editForm.dateOfBirth}    onChange={v => setEditForm({...editForm, dateOfBirth: v})}    type="date" />
+                <FormField label="Date of Joining"  value={editForm.dateOfJoining}  onChange={v => setEditForm({...editForm, dateOfJoining: v})}  type="date" />
               </div>
               <div style={styles.statusRow}>
                 <span style={styles.fieldLabel}>Employment Status</span>
