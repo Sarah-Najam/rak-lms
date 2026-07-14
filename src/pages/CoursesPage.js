@@ -36,6 +36,10 @@ function CoursesPage({ user }) {
   const [deptCourseIds,    setDeptCourseIds]    = useState(null);
   const [deptFilterLoading,setDeptFilterLoading]= useState(false);
   const [qrPopup,          setQrPopup]          = useState(null);
+  const [courseTab, setCourseTab] = useState('overview');
+const [materials, setMaterials] = useState([]);
+const [materialsLoading, setMaterialsLoading] = useState(false);
+const [uploadingMaterials, setUploadingMaterials] = useState(false);
 
   const emptyForm = {
     title: '', description: '', duration: '', institute: '',
@@ -128,18 +132,78 @@ function CoursesPage({ user }) {
   );
 
   const openDetail = async (course) => {
-    setSelected(course);
-    setDeptFilter('');
-    setEnrollLoading(true);
+  setSelected(course);
+  setDeptFilter('');
+  setCourseTab('overview');
+  setEnrollLoading(true);
+  setEnrolledLearners([]);
+  setMaterials([]);
+  try {
+    const data = await api.getEnrollmentsByCourse(course.id);
+    if (Array.isArray(data)) setEnrolledLearners(data);
+  } catch (err) {
     setEnrolledLearners([]);
-    try {
-      const data = await api.getEnrollmentsByCourse(course.id);
-      if (Array.isArray(data)) setEnrolledLearners(data);
-    } catch (err) {
-      setEnrolledLearners([]);
+  }
+  setEnrollLoading(false);
+  loadMaterials(course.id);
+};
+
+const loadMaterials = async (courseId) => {
+  setMaterialsLoading(true);
+  try {
+    const data = await api.getMaterials(courseId);
+    if (Array.isArray(data)) setMaterials(data);
+  } catch (err) {
+    setMaterials([]);
+  }
+  setMaterialsLoading(false);
+};
+
+const handleUploadMaterials = async (files) => {
+  if (!files || files.length === 0) return;
+  setUploadingMaterials(true);
+  try {
+    const fileArray = Array.from(files);
+    const errors = [];
+    for (const file of fileArray) {
+      const result = await api.uploadMaterial(selected.id, file);
+      if (result.error) errors.push(`${file.name}: ${result.error}`);
     }
-    setEnrollLoading(false);
-  };
+    loadMaterials(selected.id);
+    if (errors.length > 0) alert('Some files failed to upload:\n' + errors.join('\n'));
+  } catch (err) {
+    alert('Error uploading materials.');
+  }
+  setUploadingMaterials(false);
+};
+
+const handleDeleteMaterial = async (materialId) => {
+  if (!window.confirm('Delete this file?')) return;
+  try {
+    await api.deleteMaterial(materialId);
+    setMaterials(prev => prev.filter(m => m.id !== materialId));
+  } catch (err) {
+    alert('Error deleting file.');
+  }
+};
+
+const fileIcon = (type) => {
+  if (!type) return '📄';
+  if (type.includes('presentation') || type.includes('powerpoint')) return '📊';
+  if (type.includes('pdf')) return '📕';
+  if (type.includes('word') || type.includes('document')) return '📘';
+  if (type.includes('sheet') || type.includes('excel')) return '📗';
+  if (type.includes('zip') || type.includes('compressed')) return '🗜️';
+  if (type.includes('image')) return '🖼️';
+  return '📄';
+};
+
+const fmtFileSize = (bytes) => {
+  if (!bytes) return '—';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+};
 
   const openTrainerPopup = (trainerName) => {
     if (!trainerName) return;
@@ -560,7 +624,22 @@ function CoursesPage({ user }) {
               </div>
               <button style={styles.modalClose} onClick={() => { setSelected(null); setProfileLearner(null); setDeptFilter(''); }}>×</button>
             </div>
-            <div style={styles.modalBody}>
+            <div style={{ display: 'flex', gap: '4px', padding: '0 24px', borderBottom: '1px solid #e8ecf0', background: '#f8f9fa' }}>
+  {['overview', 'learners', 'materials'].map(tab => (
+    <button key={tab} onClick={() => setCourseTab(tab)} style={{
+      padding: '12px 16px', background: 'none', border: 'none',
+      borderBottom: courseTab === tab ? '2px solid #051c2c' : '2px solid transparent',
+      fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+      color: courseTab === tab ? '#051c2c' : '#9baabb', textTransform: 'capitalize',
+    }}>
+      {tab === 'materials' ? `Materials (${materials.length})` : tab}
+    </button>
+  ))}
+</div>
+
+<div style={styles.modalBody}>
+
+              {courseTab === 'overview' && (<>
 
               <div style={styles.coverImg}>
                 {selected.course_photo
@@ -646,6 +725,10 @@ function CoursesPage({ user }) {
                 </div>
               </div>
 
+              </>)}
+
+              {courseTab === 'learners' && (<>
+
               {!enrollLoading && deptBreakdown.length > 0 && (
                 <div style={{ marginTop: '20px' }}>
                   <div style={styles.sectionLabel}>Department Breakdown</div>
@@ -723,10 +806,54 @@ function CoursesPage({ user }) {
                 )}
               </div>
 
+</>)}
+
+              {courseTab === 'materials' && (
+                <div>
+                  {!isHod && (
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#051c2c', color: '#ffffff', padding: '10px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', marginBottom: '18px' }}>
+                      {uploadingMaterials ? '⏳ Uploading...' : '⬆️ Upload Training Material'}
+                      <input type="file" multiple style={{ display: 'none' }} disabled={uploadingMaterials}
+                        onChange={e => { handleUploadMaterials(e.target.files); e.target.value = ''; }} />
+                    </label>
+                  )}
+                  {materialsLoading ? (
+                    <div style={{ padding: '24px', textAlign: 'center', color: '#9baabb', fontSize: '13px' }}>Loading materials...</div>
+                  ) : materials.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {materials.map(m => (
+                        <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: '8px', border: '1px solid #e8ecf0', background: '#f8f9fa' }}>
+                          <span style={{ fontSize: '22px' }}>{fileIcon(m.file_type)}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '13px', fontWeight: '600', color: '#051c2c', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.file_name}</div>
+                            <div style={{ fontSize: '11px', color: '#9baabb', marginTop: '2px' }}>
+                              {fmtFileSize(m.file_size)} · {m.uploaded_at ? new Date(m.uploaded_at).toLocaleDateString('en-GB') : '—'}
+                            </div>
+                          </div>
+                          <a href={m.file_url} target="_blank" rel="noopener noreferrer" download
+                            style={{ background: '#dbeafe', color: '#1d4ed8', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: '600', textDecoration: 'none' }}>
+                            ⬇ Download
+                          </a>
+                          {!isHod && (
+                            <button onClick={() => handleDeleteMaterial(m.id)}
+                              style={{ background: '#fee2e2', color: '#991b1b', border: 'none', borderRadius: '6px', padding: '6px 10px', fontSize: '12px', cursor: 'pointer' }}>
+                              🗑️
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ padding: '30px', textAlign: 'center', color: '#9baabb', fontSize: '13px', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #e8ecf0' }}>
+                      No training material uploaded yet.
+                    </div>
+                  )}
+                </div>
+              )}
+
             </div>
             <div style={styles.modalFooter}>
-              <button style={styles.cancelBtn} onClick={() => { setSelected(null); setProfileLearner(null); setDeptFilter(''); }}>Close</button>
-              {!isHod && (
+              <button style={styles.cancelBtn} onClick={() => { setSelected(null); setProfileLearner(null); setDeptFilter(''); }}>Close</button>              {!isHod && (
                 <>
                   <button
   style={{ ...styles.cancelBtn, background: '#f0fdf4', color: '#15803d', border: 'none' }}

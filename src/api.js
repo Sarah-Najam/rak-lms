@@ -302,6 +302,26 @@ forgotPassword: (email) =>
     });
     return response.json();
   },
+  getCourseMaterials: (courseId) =>
+  fetch(`${BASE_URL}/upload/course/${courseId}/materials`, {
+    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+  }).then(r => r.json()),
+
+uploadCourseMaterials: (courseId, files) => {
+  const formData = new FormData();
+  Array.from(files).forEach(file => formData.append('files', file));
+  return fetch(`${BASE_URL}/upload/course/${courseId}/materials`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+    body: formData,
+  }).then(r => r.json());
+},
+
+deleteCourseMaterial: (materialId) =>
+  fetch(`${BASE_URL}/upload/materials/${materialId}`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+  }).then(r => r.json()),
   removeLearnerPhoto: (learnerId) =>
     fetch(`${BASE_URL}/upload/learner/${learnerId}`, {
       method: 'DELETE',
