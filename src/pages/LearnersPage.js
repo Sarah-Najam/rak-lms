@@ -4,6 +4,33 @@ import Pagination from '../components/Pagination';
 
 const ITEMS_PER_PAGE = 20;
 
+function calcAge(dob) {
+  if (!dob) return null;
+  const birth = new Date(dob);
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
+}
+
+function ageBracket(age) {
+  if (age == null) return null;
+  if (age < 30) return 'Below 30';
+  if (age <= 50) return '30 - 50';
+  return 'Over 50';
+}
+
+function bracketColor(bracket) {
+  const map = {
+    'Below 30': { bg: '#f0f9ff', color: '#0369a1' },
+    '30 - 50':  { bg: '#fef9c3', color: '#a16207' },
+    'Over 50':  { bg: '#f3e8ff', color: '#7c3aed' },
+  };
+  return map[bracket] || { bg: '#f1f5f9', color: '#5a6878' };
+}
+
+
 function LearnersPage({ user }) {
 
   const isHod = user?.role === 'hod';
@@ -405,11 +432,11 @@ function LearnersPage({ user }) {
             <table style={{ ...styles.table, minWidth: '950px' }}>
               <thead>
                 <tr style={styles.tableHeadRow}>
-                  {['No.', 'Emp ID', 'Name', 'Age', 'Level', 'Designation', 'Department', 'Status',
-                    ...(isHod ? [] : ['Action'])
-                  ].map(h => (
-                    <th key={h} style={styles.th}>{h}</th>
-                  ))}
+                 {['No.', 'Emp ID', 'Name', 'Age', 'Age Bracket', 'Level', 'Designation', 'Department', 'Status',
+  ...(isHod ? [] : ['Action'])
+].map(h => (
+  <th key={h} style={styles.th}>{h}</th>
+))}
                 </tr>
               </thead>
               <tbody>
@@ -436,8 +463,21 @@ function LearnersPage({ user }) {
                         )}
                       </div>
                     </td>
-                    <td style={{ ...styles.td, textAlign: 'center' }}>{learner.age || '—'}</td>
-                    <td style={styles.td}>{levelBadge(learner.learner_level)}</td>
+{(() => {
+  const age = calcAge(learner.date_of_birth);
+  const bracket = ageBracket(age);
+  const c = bracketColor(bracket);
+  return (
+    <>
+      <td style={{ ...styles.td, textAlign: 'center' }}>{age ?? '—'}</td>
+      <td style={styles.td}>
+        {bracket
+          ? <span style={{ background: c.bg, color: c.color, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600' }}>{bracket}</span>
+          : '—'}
+      </td>
+    </>
+  );
+})()}                    <td style={styles.td}>{levelBadge(learner.learner_level)}</td>
                     <td style={{ ...styles.td, whiteSpace: 'nowrap' }}>{learner.designation || '—'}</td>
                     <td style={{ ...styles.td, whiteSpace: 'nowrap' }}>{learner.department_name || '—'}</td>
                     <td style={styles.td}>
@@ -685,10 +725,11 @@ function LearnersPage({ user }) {
 
               <div style={styles.profileGrid}>
                 {[
-                  ['Emp ID', selected.emp_id || '—'],
-                  ['Age',    selected.age    || '—'],
-                  ['Email',  selected.email  || '—'],
-                ].map(([k, v]) => (
+  ['Emp ID',      selected.emp_id || '—'],
+  ['Age',         calcAge(selected.date_of_birth) ?? '—'],
+  ['Age Bracket', ageBracket(calcAge(selected.date_of_birth)) || '—'],
+  ['Email',       selected.email  || '—'],
+].map(([k, v]) => (
                   <div key={k} style={styles.profileInfoItem}>
                     <div style={styles.profileInfoLabel}>{k}</div>
                     <div style={styles.profileInfoValue}>{v}</div>
