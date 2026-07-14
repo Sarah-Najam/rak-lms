@@ -665,26 +665,135 @@ function StatCard({ icon, num, label, color, sub, onClick, textDark }) {
 }
 
 function MiniLineChart({ data }) {
+  const hasData = data.some(d => d.score > 0);
+
+  // Chart dimensions
+  const W         = 600;
+  const H         = 200;
+  const padLeft   = 44;
+  const padRight  = 16;
+  const padTop    = 16;
+  const padBottom = 28;
+  const chartW    = W - padLeft - padRight;
+  const chartH    = H - padTop - padBottom;
+
+  // Y axis labels
+  const yLabels = [0, 25, 50, 75, 100];
+
+  // Plot points
   const points = data.map((d, i) => {
-    const x = (i / (data.length - 1)) * 100;
-    const y = 100 - (d.score / 100) * 100;
-    return `${x},${y}`;
-  }).join(' ');
+    const x = padLeft + (i / (data.length - 1)) * chartW;
+    const y = padTop  + chartH - (d.score / 100) * chartH;
+    return { x, y, score: d.score, month: d.month || d.quarter };
+  });
+
+  const polylinePoints = points.map(p => `${p.x},${p.y}`).join(' ');
+
   return (
-    <div>
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '180px' }}>
-        <polyline points={points} fill="none" stroke="#051c2c" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-        {data.map((d, i) => {
-          const x = (i / (data.length - 1)) * 100;
-          const y = 100 - (d.score / 100) * 100;
-          return d.score > 0 ? <circle key={i} cx={x} cy={y} r="1.6" fill="#051c2c" vectorEffect="non-scaling-stroke" /> : null;
+    <div style={{ width: '100%', overflowX: 'auto' }}>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        style={{ width: '100%', height: '220px', fontFamily: 'Inter, sans-serif' }}
+      >
+        {/* ── Y AXIS GRID LINES + LABELS ── */}
+        {yLabels.map(label => {
+          const y = padTop + chartH - (label / 100) * chartH;
+          return (
+            <g key={label}>
+              {/* Grid line */}
+              <line
+                x1={padLeft} y1={y}
+                x2={padLeft + chartW} y2={y}
+                stroke="#e8ecf0" strokeWidth="1"
+                strokeDasharray={label === 0 ? 'none' : '4,3'}
+              />
+              {/* Y axis label */}
+              <text
+                x={padLeft - 8} y={y + 4}
+                textAnchor="end"
+                fontSize="10"
+                fill="#9baabb"
+                fontFamily="Inter, sans-serif"
+              >
+                {label}%
+              </text>
+            </g>
+          );
         })}
-      </svg>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
-        {data.map((d, i) => (
-          <span key={i} style={{ fontSize: '10px', color: '#9baabb', flex: 1, textAlign: 'center' }}>{d.month || d.quarter}</span>
+
+        {/* ── Y AXIS LINE ── */}
+        <line
+          x1={padLeft} y1={padTop}
+          x2={padLeft} y2={padTop + chartH}
+          stroke="#e8ecf0" strokeWidth="1.5"
+        />
+
+        {/* ── AREA FILL UNDER LINE ── */}
+        {hasData && (
+          <polygon
+            points={[
+              ...points.map(p => `${p.x},${p.y}`),
+              `${points[points.length - 1].x},${padTop + chartH}`,
+              `${points[0].x},${padTop + chartH}`,
+            ].join(' ')}
+            fill="rgba(5,28,44,0.06)"
+          />
+        )}
+
+        {/* ── POLYLINE ── */}
+        {hasData && (
+          <polyline
+            points={polylinePoints}
+            fill="none"
+            stroke="#051c2c"
+            strokeWidth="2"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+        )}
+
+        {/* ── DATA POINTS + SCORE LABELS ── */}
+        {points.map((p, i) => (
+          <g key={i}>
+            {p.score > 0 && (
+              <>
+                {/* Dot */}
+                <circle
+                  cx={p.x} cy={p.y}
+                  r="4"
+                  fill="#051c2c"
+                  stroke="#ffffff"
+                  strokeWidth="2"
+                />
+                {/* Score label above dot */}
+                <text
+                  x={p.x}
+                  y={p.y - 10}
+                  textAnchor="middle"
+                  fontSize="10"
+                  fontWeight="700"
+                  fill="#051c2c"
+                  fontFamily="Inter, sans-serif"
+                >
+                  {p.score}%
+                </text>
+              </>
+            )}
+            {/* Month label below X axis */}
+            <text
+              x={p.x}
+              y={padTop + chartH + 18}
+              textAnchor="middle"
+              fontSize="10"
+              fill="#9baabb"
+              fontFamily="Inter, sans-serif"
+            >
+              {p.month}
+            </text>
+          </g>
         ))}
-      </div>
+
+      </svg>
     </div>
   );
 }
