@@ -324,6 +324,28 @@ forgotPassword: (email) =>
     fetch(`${BASE_URL}/compliance${year ? `?year=${year}` : ''}`, {
       headers: headers(),
     }).then(r => r.json()),
+    // ── MATERIALS ─────────────────────────────────────────────
+  getMaterials: (courseId) =>
+    fetch(`${BASE_URL}/materials/${courseId}`, {
+      headers: headers(),
+    }).then(r => r.json()),
+
+  uploadMaterial: async (courseId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(`${BASE_URL}/materials/${courseId}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${getToken()}` },
+      body: formData,
+    });
+    return response.json();
+  },
+
+  deleteMaterial: (materialId) =>
+    fetch(`${BASE_URL}/materials/${materialId}`, {
+      method: 'DELETE',
+      headers: headers(),
+    }).then(r => r.json()),
 };
 
 export default api;

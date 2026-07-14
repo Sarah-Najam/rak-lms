@@ -729,11 +729,11 @@ function CoursesPage({ user }) {
               {!isHod && (
                 <>
                   <button
-                    style={{ ...styles.cancelBtn, background: '#f0fdf4', color: '#15803d', border: 'none' }}
-                    onClick={() => { const c = selected; setSelected(null); setQrPopup(c); }}
-                  >
-                    📱 Show QR Code
-                  </button>
+  style={{ ...styles.cancelBtn, background: '#f0fdf4', color: '#15803d', border: 'none' }}
+  onClick={() => setQrPopup(selected)}
+>
+  📱 Show QR Code
+</button>
                   <button
                     style={{ ...styles.cancelBtn, background: '#dbeafe', color: '#1d4ed8', border: 'none' }}
                     onClick={async () => {
@@ -955,6 +955,8 @@ function CoursesPage({ user }) {
                     bgColor="#f8f9fa"
                     fgColor="#051c2c"
                     level="M"
+                    data-qr-svg="true"
+
                   />
                 </div>
                 <div style={{ fontSize: '14px', fontWeight: '700', color: '#051c2c', marginBottom: '6px' }}>
