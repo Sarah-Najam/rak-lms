@@ -366,6 +366,19 @@ deleteCourseMaterial: (materialId) =>
       method: 'DELETE',
       headers: headers(),
     }).then(r => r.json()),
+
+    // ── BUDGET ────────────────────────────────────────────────
+  getBudget: (year) =>
+    fetch(`${BASE_URL}/budget${year ? `?year=${year}` : ''}`, {
+      headers: headers(),
+    }).then(r => r.json()),
+
+  setBudget: (year, amount, notes) =>
+    fetch(`${BASE_URL}/budget`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ year, amount, notes }),
+    }).then(r => r.json()),
 };
 
 export default api;
