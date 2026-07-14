@@ -830,10 +830,21 @@ const fmtFileSize = (bytes) => {
                               {fmtFileSize(m.file_size)} · {m.uploaded_at ? new Date(m.uploaded_at).toLocaleDateString('en-GB') : '—'}
                             </div>
                           </div>
-                          <a href={m.file_url} target="_blank" rel="noopener noreferrer" download
-                            style={{ background: '#dbeafe', color: '#1d4ed8', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: '600', textDecoration: 'none' }}>
-                            ⬇ Download
-                          </a>
+                          {['PDF','JPG','JPEG','PNG'].includes((m.file_type || '').toUpperCase()) ? (
+  <a href={m.file_url} target="_blank" rel="noopener noreferrer"
+    style={{ background: '#dcfce7', color: '#15803d', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: '600', textDecoration: 'none' }}>
+    👁 View
+  </a>
+) : (
+  <a href={`https://docs.google.com/gview?url=${encodeURIComponent(m.file_url)}&embedded=true`} target="_blank" rel="noopener noreferrer"
+    style={{ background: '#dcfce7', color: '#15803d', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: '600', textDecoration: 'none' }}>
+    👁 View
+  </a>
+)}
+<a href={m.file_url} target="_blank" rel="noopener noreferrer" download
+  style={{ background: '#dbeafe', color: '#1d4ed8', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: '600', textDecoration: 'none' }}>
+  ⬇ Download
+</a>
                           {!isHod && (
                             <button onClick={() => handleDeleteMaterial(m.id)}
                               style={{ background: '#fee2e2', color: '#991b1b', border: 'none', borderRadius: '6px', padding: '6px 10px', fontSize: '12px', cursor: 'pointer' }}>
