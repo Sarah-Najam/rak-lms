@@ -11,10 +11,13 @@ function ReportsPage({ user }) {
   const [departments,  setDepartments]  = useState([]);
   const [learners,     setLearners]     = useState([]);
   const [courses,      setCourses]      = useState([]);
+  const [calEntries,   setCalEntries]   = useState([]);
+  const [budget,       setBudget]       = useState(null);
   const [loading,      setLoading]      = useState(true);
   const [exporting,    setExporting]    = useState(false);
   const [drillDown,    setDrillDown]    = useState(null);
   const [drillLoading, setDrillLoading] = useState(false);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   const [startDate, setStartDate] = useState(
     new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0]
@@ -34,15 +37,26 @@ function ReportsPage({ user }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startDate, endDate]);
 
+  useEffect(() => {
+    api.getBudget(selectedYear)
+      .then(b => setBudget(b))
+      .catch(() => setBudget(null));
+    api.getCalendar()
+      .then(data => { if (Array.isArray(data)) setCalEntries(data); })
+      .catch(() => {});
+  }, [selectedYear]);
+
   const loadData = () => {
     Promise.all([
       api.getDepartments(),
       api.getLearners(),
       api.getCourses(),
-    ]).then(([d, l, c]) => {
-      if (Array.isArray(d)) setDepartments(d);
-      if (Array.isArray(l)) setLearners(l);
-      if (Array.isArray(c)) setCourses(c);
+      api.getCalendar(),
+    ]).then(([d, l, c, cal]) => {
+      if (Array.isArray(d))   setDepartments(d);
+      if (Array.isArray(l))   setLearners(l);
+      if (Array.isArray(c))   setCourses(c);
+      if (Array.isArray(cal)) setCalEntries(cal);
       setLoading(false);
     }).catch(() => setLoading(false));
   };
@@ -52,6 +66,22 @@ function ReportsPage({ user }) {
     if (!d) return true;
     return new Date(d) >= new Date(startDate) && new Date(d) <= new Date(endDate);
   });
+
+  // Calendar entries filtered by selected year
+  const yearCalEntries = calEntries.filter(e => {
+    const d = e.start_date || e.end_date;
+    if (!d) return false;
+    return new Date(d).getFullYear() === selectedYear;
+  });
+
+  const fmtAED = (n) => {
+    if (!n && n !== 0) return '—';
+    return 'AED ' + Math.abs(+n).toLocaleString('en-AE', { minimumFractionDigits: 0 });
+  };
+
+  const variance     = budget?.budgetVariance || 0;
+  const isOverBudget = variance < 0;
+  const isNoBudget   = !budget?.annualBudget;
 
   const handleExportExcel = async () => {
     setExporting(true);
@@ -74,6 +104,13 @@ function ReportsPage({ user }) {
         ['Total Training Hours',      stats?.totalTrainingHours || 0],
         ['Learners Trained (unique)', stats?.totalLearnersTrainedThisYear || 0],
         ['Satisfaction Score',        (stats?.overallSatisfaction || 0) + '%'],
+        [],
+        ['BUDGET — ' + selectedYear],
+        ['Annual Budget',     budget?.annualBudget   ? fmtAED(budget.annualBudget)   : 'Not set'],
+        ['Spent To Date',     fmtAED(budget?.spentToDate || 0)],
+        ['Remaining Budget',  isNoBudget ? '—' : fmtAED(budget.remainingBudget)],
+        ['Budget Utilization',isNoBudget ? '—' : (budget.budgetUtilization + '%')],
+        ['Budget Variance',   isNoBudget ? '—' : ((isOverBudget ? '(-) ' : '(+) ') + fmtAED(Math.abs(variance)))],
       ];
       const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
       wsSummary['!cols'] = [{ wch: 30 }, { wch: 20 }];
@@ -100,6 +137,22 @@ function ReportsPage({ user }) {
       const wsCourses = XLSX.utils.aoa_to_sheet([coursesHeaders, ...coursesRows]);
       XLSX.utils.book_append_sheet(wb, wsCourses, 'Courses');
 
+      // Calendar / Budget sheet
+      const calHeaders = ['Training Name', 'Department', 'Type', 'Status', 'Start Date', 'End Date', 'Training Hours', 'Cost (AED)'];
+      const calRows = yearCalEntries.map(e => [
+        e.training_name || '',
+        e.department_name || '—',
+        e.type || '—',
+        e.status || '—',
+        e.start_date ? new Date(e.start_date).toLocaleDateString('en-GB') : '',
+        e.end_date   ? new Date(e.end_date).toLocaleDateString('en-GB')   : '',
+        e.training_hours || 0,
+        +e.cost || 0,
+      ]);
+      const wsCal = XLSX.utils.aoa_to_sheet([calHeaders, ...calRows]);
+      wsCal['!cols'] = [{ wch: 35 }, { wch: 22 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 14 }];
+      XLSX.utils.book_append_sheet(wb, wsCal, `Calendar ${selectedYear}`);
+
       const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       saveAs(blob, `RAK_LMS_Report_${startDate}_to_${endDate}.xlsx`);
@@ -109,7 +162,6 @@ function ReportsPage({ user }) {
     setExporting(false);
   };
 
-  // ── DRILL DOWN DATA ──
   const getDrillDownData = () => ({
     totalLearners: {
       title: 'Total Learners',
@@ -146,31 +198,23 @@ function ReportsPage({ user }) {
       headers: ['Course Name', 'Duration (hrs)', 'Attended', 'Total Hours'],
       rows: filteredCourses
         .filter(c => +c.duration_hours > 0)
-        .map(c => [
-          c.title,
-          c.duration_hours || 0,
-          c.attended_count || 0,
-          ((+c.duration_hours || 0) * (+c.attended_count || 0)) + 'h',
-        ])
+        .map(c => [c.title, c.duration_hours || 0, c.attended_count || 0, ((+c.duration_hours || 0) * (+c.attended_count || 0)) + 'h'])
         .sort((a, b) => parseInt(b[3]) - parseInt(a[3])),
     },
     completedCourses: {
       title: 'Completed Courses',
       headers: ['Course', 'Training Type', 'Attended'],
-      rows: filteredCourses.filter(c => c.status === 'Completed')
-        .map(c => [c.title, c.training_type || 'Developmental', c.attended_count || 0]),
+      rows: filteredCourses.filter(c => c.status === 'Completed').map(c => [c.title, c.training_type || 'Developmental', c.attended_count || 0]),
     },
     ongoingCourses: {
       title: 'Ongoing Courses',
       headers: ['Course', 'Training Type', 'Enrolled'],
-      rows: filteredCourses.filter(c => c.status === 'Ongoing')
-        .map(c => [c.title, c.training_type || 'Developmental', c.enrolled_count || 0]),
+      rows: filteredCourses.filter(c => c.status === 'Ongoing').map(c => [c.title, c.training_type || 'Developmental', c.enrolled_count || 0]),
     },
     pendingCourses: {
       title: 'Pending Courses',
       headers: ['Course', 'Training Type', 'Max Learners'],
-      rows: filteredCourses.filter(c => c.status === 'Pending')
-        .map(c => [c.title, c.training_type || 'Developmental', c.max_learners || '—']),
+      rows: filteredCourses.filter(c => c.status === 'Pending').map(c => [c.title, c.training_type || 'Developmental', c.max_learners || '—']),
     },
     satisfactionScore: {
       title: 'Course Satisfaction Scores',
@@ -178,16 +222,39 @@ function ReportsPage({ user }) {
       rows: filteredCourses
         .filter(c => +c.stars > 0)
         .sort((a, b) => b.stars - a.stars)
-        .map(c => [
-          c.title,
-          '★'.repeat(Math.round(+c.stars)) + '☆'.repeat(5 - Math.round(+c.stars)),
-          Math.round((+c.stars / 5) * 100) + '%',
+        .map(c => [c.title, '★'.repeat(Math.round(+c.stars)) + '☆'.repeat(5 - Math.round(+c.stars)), Math.round((+c.stars / 5) * 100) + '%']),
+    },
+    // Budget drill-downs
+    spentToDate: {
+      title: `Training Spend — ${selectedYear}`,
+      headers: ['Training Name', 'Department', 'Type', 'Status', 'Cost (AED)'],
+      rows: yearCalEntries
+        .filter(e => +e.cost > 0)
+        .sort((a, b) => (+b.cost || 0) - (+a.cost || 0))
+        .map(e => [
+          e.training_name,
+          e.department_name || '—',
+          e.type || '—',
+          e.status || '—',
+          'AED ' + (+e.cost).toLocaleString(),
         ]),
+    },
+    calendarEntries: {
+      title: `All Training Calendar Entries — ${selectedYear}`,
+      headers: ['Training Name', 'Department', 'Type', 'Status', 'Start Date', 'Hours', 'Cost (AED)'],
+      rows: yearCalEntries.map(e => [
+        e.training_name,
+        e.department_name || '—',
+        e.type || '—',
+        e.status || '—',
+        e.start_date ? new Date(e.start_date).toLocaleDateString('en-GB') : '—',
+        (e.training_hours || 0) + 'h',
+        e.cost ? 'AED ' + (+e.cost).toLocaleString() : '—',
+      ]),
     },
   });
 
   const openDrillDown = async (key, overrideData) => {
-    // Override — used for dept row clicks with custom data
     if (overrideData) {
       setDrillDown(overrideData);
       return;
@@ -195,18 +262,9 @@ function ReportsPage({ user }) {
 
     const allData = getDrillDownData();
 
-    // Async drill-downs — need to fetch enrollment data
     if (key === 'enrolled' || key === 'attended' || key === 'participationRate') {
-      const titles = {
-        enrolled:          'Enrolled Learners',
-        attended:          'Attended Learners',
-        participationRate: 'Participation Breakdown',
-      };
-      const headers = {
-        enrolled:          ['Learner Name', 'Course'],
-        attended:          ['Learner Name', 'Course'],
-        participationRate: ['Learner Name', 'Status'],
-      };
+      const titles  = { enrolled: 'Enrolled Learners', attended: 'Attended Learners', participationRate: 'Participation Breakdown' };
+      const headers = { enrolled: ['Learner Name', 'Course'], attended: ['Learner Name', 'Course'], participationRate: ['Learner Name', 'Status'] };
 
       setDrillDown({ title: titles[key], headers: headers[key], rows: [] });
       setDrillLoading(true);
@@ -218,11 +276,7 @@ function ReportsPage({ user }) {
             const enrollments = await api.getEnrollmentsByCourse(course.id);
             if (Array.isArray(enrollments)) {
               enrollments.forEach(e => {
-                allEnrollments.push({
-                  learnerName: e.name,
-                  courseName:  course.title,
-                  attended:    e.attended,
-                });
+                allEnrollments.push({ learnerName: e.name, courseName: course.title, attended: e.attended });
               });
             }
           } catch (err) {}
@@ -232,16 +286,10 @@ function ReportsPage({ user }) {
         if (key === 'enrolled') {
           rows = allEnrollments.map(e => [e.learnerName, e.courseName]);
         } else if (key === 'attended') {
-          rows = allEnrollments
-            .filter(e => e.attended)
-            .map(e => [e.learnerName, e.courseName]);
+          rows = allEnrollments.filter(e => e.attended).map(e => [e.learnerName, e.courseName]);
         } else if (key === 'participationRate') {
-          const attended = allEnrollments
-            .filter(e => e.attended)
-            .map(e => [e.learnerName, '✅ Attended']);
-          const absent = allEnrollments
-            .filter(e => !e.attended)
-            .map(e => [e.learnerName, '⏳ Enrolled (Absent)']);
+          const attended = allEnrollments.filter(e => e.attended).map(e => [e.learnerName, '✅ Attended']);
+          const absent   = allEnrollments.filter(e => !e.attended).map(e => [e.learnerName, '⏳ Enrolled (Absent)']);
           rows = [...attended, ...absent];
         }
 
@@ -253,9 +301,7 @@ function ReportsPage({ user }) {
       return;
     }
 
-    if (allData[key]) {
-      setDrillDown(allData[key]);
-    }
+    if (allData[key]) setDrillDown(allData[key]);
   };
 
   if (loading || !stats) return (
@@ -267,7 +313,6 @@ function ReportsPage({ user }) {
   return (
     <div style={styles.page}>
 
-      {/* ── READ ONLY BANNER FOR HOD ── */}
       {isHod && (
         <div style={styles.hodBanner}>
           👁 You are viewing your department's reports in read-only mode.
@@ -299,21 +344,146 @@ function ReportsPage({ user }) {
       </div>
 
       <div style={styles.statGrid}>
-        <StatCard icon="📝" num={stats.totalEnrolled}              label="Enrolled"              color="#051C2C" sub="click to see who"      onClick={() => openDrillDown('enrolled')} />
-        <StatCard icon="🎯" num={stats.totalAttended}              label="Attended"              color="#A5C8D2" sub="click to see who"      onClick={() => openDrillDown('attended')} textDark />
-        <StatCard icon="📊" num={stats.participationRate + '%'}    label="Participation Rate"    color="#AF5F46" sub="enrolled vs attended"  onClick={() => openDrillDown('participationRate')} />
-        <StatCard icon="⏱️" num={stats.totalTrainingHours + 'h'}  label="Total Training Hours"  color="#BEC8BE" sub="click for breakdown"   onClick={() => openDrillDown('trainingHours')} textDark />
+        <StatCard icon="📝" num={stats.totalEnrolled}             label="Enrolled"             color="#051C2C" sub="click to see who"     onClick={() => openDrillDown('enrolled')} />
+        <StatCard icon="🎯" num={stats.totalAttended}             label="Attended"             color="#A5C8D2" sub="click to see who"     onClick={() => openDrillDown('attended')} textDark />
+        <StatCard icon="📊" num={stats.participationRate + '%'}   label="Participation Rate"   color="#AF5F46" sub="enrolled vs attended" onClick={() => openDrillDown('participationRate')} />
+        <StatCard icon="⏱️" num={stats.totalTrainingHours + 'h'} label="Total Training Hours" color="#BEC8BE" sub="click for breakdown"  onClick={() => openDrillDown('trainingHours')} textDark />
+      </div>
+
+      {/* ── BUDGET SECTION ── */}
+      <div style={styles.sectionHeader}>
+        <div style={{ fontSize: '16px', fontWeight: '700', color: '#051c2c' }}>
+          Budget Overview
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '8px', padding: '6px 12px' }}>
+          <span style={{ fontSize: '11px', color: '#5a6878', fontWeight: '600' }}>Year</span>
+          <select
+            value={selectedYear}
+            onChange={e => setSelectedYear(+e.target.value)}
+            style={{ border: 'none', outline: 'none', fontSize: '13px', fontWeight: '700', color: '#051c2c', background: 'transparent', fontFamily: 'Inter, sans-serif', cursor: 'pointer' }}
+          >
+            {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div style={styles.budgetGrid}>
+
+        {/* Annual Budget */}
+        <button
+          onClick={() => openDrillDown('calendarEntries')}
+          style={{ ...styles.budgetCard, cursor: 'pointer', textAlign: 'left', border: '1px solid #e8ecf0' }}
+        >
+          <div style={styles.budgetLabel}>Annual Budget</div>
+          <div style={styles.budgetValue}>
+            {isNoBudget
+              ? <span style={{ fontSize: '13px', color: '#9baabb' }}>Not set</span>
+              : fmtAED(budget.annualBudget)
+            }
+          </div>
+          <div style={{ fontSize: '10px', color: '#9baabb', marginTop: '6px' }}>
+            {yearCalEntries.length} calendar entries · click to view →
+          </div>
+        </button>
+
+        {/* Spent To Date */}
+        <button
+          onClick={() => openDrillDown('spentToDate')}
+          style={{ ...styles.budgetCard, cursor: 'pointer', textAlign: 'left', border: '1px solid #e8ecf0' }}
+        >
+          <div style={styles.budgetLabel}>Spent To Date</div>
+          <div style={styles.budgetValue}>
+            {fmtAED(budget?.spentToDate || 0)}
+          </div>
+          <div style={{ fontSize: '10px', color: '#9baabb', marginTop: '6px' }}>
+            {yearCalEntries.filter(e => +e.cost > 0).length} entries with cost · click to view →
+          </div>
+        </button>
+
+        {/* Remaining Budget */}
+        <div style={styles.budgetCard}>
+          <div style={styles.budgetLabel}>Remaining Budget</div>
+          <div style={{
+            ...styles.budgetValue,
+            color: isNoBudget ? '#9baabb' : isOverBudget ? '#dc2626' : '#15803d',
+          }}>
+            {isNoBudget ? '—' : fmtAED(budget.remainingBudget)}
+          </div>
+          {!isNoBudget && (
+            <div style={{ marginTop: '8px' }}>
+              <div style={{ height: '4px', background: '#e8ecf0', borderRadius: '2px', overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%',
+                  width: Math.min(budget.budgetUtilization, 100) + '%',
+                  background: budget.budgetUtilization >= 100 ? '#dc2626' : budget.budgetUtilization >= 80 ? '#f59e0b' : '#16a34a',
+                  borderRadius: '2px',
+                }} />
+              </div>
+              <div style={{ fontSize: '10px', color: '#9baabb', marginTop: '4px' }}>
+                {budget.budgetUtilization}% utilized
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Budget Utilization */}
+        <div style={styles.budgetCard}>
+          <div style={styles.budgetLabel}>Budget Utilization</div>
+          <div style={{
+            ...styles.budgetValue,
+            color: isNoBudget ? '#9baabb'
+              : budget.budgetUtilization >= 100 ? '#dc2626'
+              : budget.budgetUtilization >= 80  ? '#f59e0b'
+              : '#051c2c',
+          }}>
+            {isNoBudget ? '—' : budget.budgetUtilization + '%'}
+          </div>
+          {!isNoBudget && (
+            <div style={{ marginTop: '6px', fontSize: '11px', color: '#9baabb' }}>
+              of annual budget
+            </div>
+          )}
+        </div>
+
+        {/* Budget Variance */}
+        <div style={{
+          ...styles.budgetCard,
+          background: isNoBudget ? '#f8f9fa' : isOverBudget ? '#fee2e2' : '#f0fdf4',
+          border: isNoBudget ? '1px solid #e8ecf0' : isOverBudget ? '1px solid #fca5a5' : '1px solid #86efac',
+        }}>
+          <div style={styles.budgetLabel}>Budget Variance</div>
+          <div style={{
+            ...styles.budgetValue,
+            color: isNoBudget ? '#9baabb' : isOverBudget ? '#dc2626' : '#15803d',
+          }}>
+            {isNoBudget ? '—' : (
+              <span>
+                <span style={{ fontSize: '13px', marginRight: '4px' }}>
+                  {isOverBudget ? '(-)' : '(+)'}
+                </span>
+                {fmtAED(Math.abs(variance))}
+              </span>
+            )}
+          </div>
+          {!isNoBudget && (
+            <div style={{
+              fontSize: '11px', fontWeight: '600', marginTop: '6px',
+              color: isOverBudget ? '#dc2626' : '#15803d',
+            }}>
+              {isOverBudget ? '⚠️ Over Budget' : '✅ Under Budget'}
+            </div>
+          )}
+        </div>
+
       </div>
 
       {/* ── ROW 2 ── */}
       <div style={styles.row2}>
 
-        {/* Emirati Learners */}
         <div style={styles.card}>
           <div style={styles.cardTitle}>Emirati Learners</div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
-            <button onClick={() => openDrillDown('emiratiLearners')}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            <button onClick={() => openDrillDown('emiratiLearners')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
               <div style={{ position: 'relative', width: '130px', height: '130px' }}>
                 <svg viewBox="0 0 130 130" style={{ width: '130px', height: '130px', transform: 'rotate(-90deg)' }}>
                   <circle cx="65" cy="65" r="54" fill="none" stroke="#e8ecf0" strokeWidth="12" />
@@ -332,12 +502,9 @@ function ReportsPage({ user }) {
           </div>
         </div>
 
-        {/* Course Status Breakdown */}
         <div style={styles.card}>
           <div style={styles.cardTitle}>Course Status Breakdown</div>
-          <div style={{ fontSize: '32px', fontWeight: '800', color: '#051c2c', lineHeight: 1, marginBottom: '14px' }}>
-            {stats.totalCourses}
-          </div>
+          <div style={{ fontSize: '32px', fontWeight: '800', color: '#051c2c', lineHeight: 1, marginBottom: '14px' }}>{stats.totalCourses}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {[
               ['Completed', stats.completedCourses, '#051c2c', 'completedCourses'],
@@ -354,12 +521,10 @@ function ReportsPage({ user }) {
           </div>
         </div>
 
-        {/* Satisfaction Score */}
         <div style={styles.card}>
           <div style={styles.cardTitle}>Satisfaction Score</div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', padding: '6px 0' }}>
-            <button onClick={() => openDrillDown('satisfactionScore')}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            <button onClick={() => openDrillDown('satisfactionScore')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
               <div style={{ position: 'relative', width: '110px', height: '110px' }}>
                 <svg viewBox="0 0 110 110" style={{ width: '110px', height: '110px', transform: 'rotate(-90deg)' }}>
                   <circle cx="55" cy="55" r="46" fill="none" stroke="#e8ecf0" strokeWidth="10" />
@@ -377,14 +542,10 @@ function ReportsPage({ user }) {
           </div>
         </div>
 
-        {/* Total Departments */}
         <div style={styles.card}>
-          <button onClick={() => openDrillDown('totalDepts')}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: '100%', textAlign: 'left' }}>
+          <button onClick={() => openDrillDown('totalDepts')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: '100%', textAlign: 'left' }}>
             <div style={styles.cardTitle}>{isHod ? 'My Department' : 'Total Departments'}</div>
-            <div style={{ fontSize: '32px', fontWeight: '800', color: '#051c2c', lineHeight: 1, marginBottom: '8px' }}>
-              {stats.totalDepts} →
-            </div>
+            <div style={{ fontSize: '32px', fontWeight: '800', color: '#051c2c', lineHeight: 1, marginBottom: '8px' }}>{stats.totalDepts} →</div>
           </button>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '90px', overflowY: 'auto' }}>
             {departments.slice(0, 4).map(d => (
@@ -401,7 +562,6 @@ function ReportsPage({ user }) {
       {/* ── ROW 3 ── */}
       <div style={styles.row3}>
 
-        {/* Most Active Departments */}
         <div style={styles.card}>
           <div style={styles.cardTitle}>{isHod ? 'My Department Activity' : 'Most Active Departments'}</div>
           <div style={{ fontSize: '10px', color: '#9baabb', marginBottom: '12px' }}>Click a department to see its learners</div>
@@ -410,30 +570,21 @@ function ReportsPage({ user }) {
               onClick={() => openDrillDown(null, {
                 title:   `${d.name} — Learners`,
                 headers: ['Name', 'Emp ID', 'Status'],
-                rows:    learners
-                  .filter(l => l.department_name === d.name)
-                  .map(l => [l.name, l.emp_id || '—', l.status]),
+                rows:    learners.filter(l => l.department_name === d.name).map(l => [l.name, l.emp_id || '—', l.status]),
               })}
-              style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 0', borderBottom: '1px solid #f0f2f4', background: 'none', border: 'none', borderBottom: '1px solid #f0f2f4', cursor: 'pointer', width: '100%', textAlign: 'left', fontFamily: 'Inter, sans-serif' }}>
+              style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 0', background: 'none', border: 'none', borderBottom: '1px solid #f0f2f4', cursor: 'pointer', width: '100%', textAlign: 'left', fontFamily: 'Inter, sans-serif' }}>
               <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: i === 0 ? '#fef9c3' : '#f2f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '700', color: i === 0 ? '#a16207' : '#5a6878', flexShrink: 0 }}>
                 {i + 1}
               </span>
-              <span style={{ fontSize: '13px', fontWeight: '500', color: '#051c2c', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {d.name}
-              </span>
-              <span style={{ fontSize: '11px', fontWeight: '700', color: '#15803d' }}>
-                {d.attended_count} attended →
-              </span>
+              <span style={{ fontSize: '13px', fontWeight: '500', color: '#051c2c', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.name}</span>
+              <span style={{ fontSize: '11px', fontWeight: '700', color: '#15803d' }}>{d.attended_count} attended →</span>
             </button>
           ))}
           {mostActiveDepartments.length === 0 && (
-            <div style={{ padding: '20px', textAlign: 'center', color: '#9baabb', fontSize: '13px' }}>
-              No department activity in this range.
-            </div>
+            <div style={{ padding: '20px', textAlign: 'center', color: '#9baabb', fontSize: '13px' }}>No department activity in this range.</div>
           )}
         </div>
 
-        {/* Satisfaction Trend */}
         <div style={{ ...styles.card, flex: 2 }}>
           <div style={styles.cardTitle}>Satisfaction Score Trend</div>
           {(stats.satisfactionTrend || []).some(d => d.score > 0) ? (
@@ -457,9 +608,7 @@ function ReportsPage({ user }) {
             </div>
             <div style={styles.modalBody}>
               {drillLoading ? (
-                <div style={{ padding: '60px', textAlign: 'center', color: '#9baabb', fontSize: '14px' }}>
-                  ⏳ Loading data...
-                </div>
+                <div style={{ padding: '60px', textAlign: 'center', color: '#9baabb', fontSize: '14px' }}>⏳ Loading data...</div>
               ) : (
                 <>
                   <div style={{ fontSize: '12px', color: '#9baabb', marginBottom: '12px' }}>
@@ -470,9 +619,7 @@ function ReportsPage({ user }) {
                       <thead>
                         <tr style={{ background: '#f8f9fa', borderBottom: '1px solid #e8ecf0' }}>
                           {drillDown.headers.map(h => (
-                            <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10px', fontWeight: '700', color: '#9baabb', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>
-                              {h}
-                            </th>
+                            <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10px', fontWeight: '700', color: '#9baabb', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>{h}</th>
                           ))}
                         </tr>
                       </thead>
@@ -480,18 +627,14 @@ function ReportsPage({ user }) {
                         {drillDown.rows.map((row, i) => (
                           <tr key={i} style={{ borderBottom: '1px solid #f0f2f4' }}>
                             {row.map((cell, j) => (
-                              <td key={j} style={{ padding: '9px 12px', fontSize: '13px', color: '#051c2c' }}>
-                                {cell}
-                              </td>
+                              <td key={j} style={{ padding: '9px 12px', fontSize: '13px', color: '#051c2c' }}>{cell}</td>
                             ))}
                           </tr>
                         ))}
                       </tbody>
                     </table>
                     {drillDown.rows.length === 0 && (
-                      <div style={{ padding: '30px', textAlign: 'center', color: '#9baabb', fontSize: '13px' }}>
-                        No records found.
-                      </div>
+                      <div style={{ padding: '30px', textAlign: 'center', color: '#9baabb', fontSize: '13px' }}>No records found.</div>
                     )}
                   </div>
                 </>
@@ -534,16 +677,12 @@ function MiniLineChart({ data }) {
         {data.map((d, i) => {
           const x = (i / (data.length - 1)) * 100;
           const y = 100 - (d.score / 100) * 100;
-          return d.score > 0
-            ? <circle key={i} cx={x} cy={y} r="1.6" fill="#051c2c" vectorEffect="non-scaling-stroke" />
-            : null;
+          return d.score > 0 ? <circle key={i} cx={x} cy={y} r="1.6" fill="#051c2c" vectorEffect="non-scaling-stroke" /> : null;
         })}
       </svg>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
         {data.map((d, i) => (
-          <span key={i} style={{ fontSize: '10px', color: '#9baabb', flex: 1, textAlign: 'center' }}>
-            {d.month || d.quarter}
-          </span>
+          <span key={i} style={{ fontSize: '10px', color: '#9baabb', flex: 1, textAlign: 'center' }}>{d.month || d.quarter}</span>
         ))}
       </div>
     </div>
@@ -559,12 +698,17 @@ const styles = {
   dateInput:      { border: 'none', outline: 'none', fontSize: '12px', fontFamily: 'Inter, sans-serif', color: '#051c2c', background: 'transparent' },
   exportBtn:      { background: '#051c2c', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
   statGrid:       { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px', marginBottom: '14px' },
+  sectionHeader:  { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', marginTop: '6px' },
+  budgetGrid:     { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '20px' },
+  budgetCard:     { background: '#ffffff', borderRadius: '10px', border: '1px solid #e8ecf0', padding: '16px', fontFamily: 'Inter, sans-serif' },
+  budgetLabel:    { fontSize: '11px', fontWeight: '700', color: '#9baabb', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' },
+  budgetValue:    { fontSize: '15px', fontWeight: '800', color: '#051c2c', lineHeight: 1.3 },
   row2:           { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '20px' },
   row3:           { display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '16px' },
   card:           { background: '#ffffff', borderRadius: '12px', border: '1px solid #e8ecf0', padding: '20px' },
   cardTitle:      { fontSize: '14px', fontWeight: '700', color: '#051c2c', marginBottom: '14px', paddingBottom: '10px', borderBottom: '1px solid #f0f2f4' },
   overlay:        { position: 'fixed', inset: 0, background: 'rgba(5,28,44,0.55)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' },
-  modal:          { background: '#ffffff', borderRadius: '16px', width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(5,28,44,0.25)' },
+  modal:          { background: '#ffffff', borderRadius: '16px', width: '100%', maxWidth: '700px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(5,28,44,0.25)' },
   modalHeader:    { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #e8ecf0', position: 'sticky', top: 0, background: '#ffffff', zIndex: 1 },
   modalTitle:     { fontSize: '18px', fontWeight: '700', color: '#051c2c' },
   modalClose:     { background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#9baabb' },
