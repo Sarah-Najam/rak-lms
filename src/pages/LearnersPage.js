@@ -436,7 +436,7 @@ function LearnersPage({ user }) {
             <table style={{ ...styles.table, minWidth: '950px' }}>
               <thead>
                 <tr style={styles.tableHeadRow}>
-                 {['No.', 'Emp ID', 'Name', 'Age', 'Age Bracket', 'Level', 'Designation', 'Department', 'Status',
+                 {['No.', 'Emp ID', 'Name', 'Age Bracket', 'Level', 'Designation', 'Department', 'Status',
   ...(isHod ? [] : ['Action'])
 ].map(h => (
   <th key={h} style={styles.th}>{h}</th>
@@ -472,14 +472,11 @@ function LearnersPage({ user }) {
   const bracket = ageBracket(age);
   const c = bracketColor(bracket);
   return (
-    <>
-      <td style={{ ...styles.td, textAlign: 'center' }}>{age ?? '—'}</td>
-      <td style={styles.td}>
-        {bracket
-          ? <span style={{ background: c.bg, color: c.color, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600' }}>{bracket}</span>
-          : '—'}
-      </td>
-    </>
+    <td style={styles.td}>
+      {bracket
+        ? <span style={{ background: c.bg, color: c.color, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600' }}>{bracket}</span>
+        : '—'}
+    </td>
   );
 })()}                    <td style={styles.td}>{levelBadge(learner.learner_level)}</td>
                     <td style={{ ...styles.td, whiteSpace: 'nowrap' }}>{learner.designation || '—'}</td>
@@ -732,7 +729,6 @@ function LearnersPage({ user }) {
               <div style={styles.profileGrid}>
                 {[
   ['Emp ID',      selected.emp_id || '—'],
-  ['Age',         calcAge(selected.date_of_birth) ?? '—'],
   ['Age Bracket', ageBracket(calcAge(selected.date_of_birth)) || '—'],
   ['Email',       selected.email  || '—'],
 ].map(([k, v]) => (
@@ -1067,7 +1063,7 @@ const styles = {
   profileAvatar:    { width: '56px', height: '56px', borderRadius: '50%', background: '#051c2c', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: '700', flexShrink: 0 },
   photoUploadBtn:   { position: 'absolute', bottom: 0, right: 0, width: '22px', height: '22px', borderRadius: '50%', background: '#051c2c', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', cursor: 'pointer', border: '2px solid #ffffff' },
   profileGrid:      { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' },
-  profileInfoItem:  { display: 'flex', flexDirection: 'column', gap: '4px' },
+  profileInfoItem:  { display:'flex', flexDirection: 'column', gap: '4px' },
   profileInfoLabel: { fontSize: '10px', fontWeight: '700', color: '#9baabb', textTransform: 'uppercase', letterSpacing: '0.5px' },
   profileInfoValue: { fontSize: '13px', fontWeight: '500', color: '#051c2c' },
   trainingStats:    { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '20px' },
