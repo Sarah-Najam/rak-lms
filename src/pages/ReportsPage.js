@@ -227,15 +227,20 @@ function ReportsPage({ user }) {
     // Budget drill-downs
     spentToDate: {
       title: `Training Spend — ${selectedYear}`,
-      headers: ['Training Name', 'Department', 'Type', 'Status', 'Cost (AED)'],
-      rows: yearCalEntries
-        .filter(e => +e.cost > 0 && e.status === 'Completed')
+      headers: ['Training Name', 'Department', 'Type', 'Cost (AED)'],
+      rows: calEntries
+        .filter(e => {
+          const d = e.start_date || e.end_date;
+          if (!d) return false;
+          return new Date(d).getFullYear() === selectedYear
+            && +e.cost > 0
+            && e.status === 'Completed';
+        })
         .sort((a, b) => (+b.cost || 0) - (+a.cost || 0))
         .map(e => [
           e.training_name,
           e.department_name || '—',
           e.type || '—',
-          e.status || '—',
           'AED ' + (+e.cost).toLocaleString(),
         ]),
     },
