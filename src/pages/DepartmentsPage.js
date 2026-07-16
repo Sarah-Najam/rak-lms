@@ -18,8 +18,8 @@ function DepartmentsPage() {
   const [learnerCourses, setLearnerCourses] = useState({});
   const [profileLearner, setProfileLearner] = useState(null);
 
-  const [form, setForm] = useState({
-    name: '', hod: '', designation: '', population: ''
+ const [form, setForm] = useState({
+    name: '', hod: '', designation: ''
   });
 
   useEffect(() => {
@@ -45,15 +45,36 @@ function DepartmentsPage() {
     currentPage * ITEMS_PER_PAGE
   );
 
-  const totalPopulation = departments.reduce((s, d) => s + (+d.population || 0), 0);
   const totalLearners   = departments.reduce((s, d) => s + (+d.learner_count || 0), 0);
 
-  const getDeptTotalHours = () =>
-    courses.reduce((s, c) => {
-      const hours    = +c.duration_hours  || 0;
-      const attended = +c.attended_count  || 0;
-      return s + hours * attended;
+  // Calculate training hours for a SPECIFIC department's learners
+  const getDeptTrainingHours = (deptId) => {
+    const deptLearnerIds = departments
+      .find(d => d.id === deptId) ? [] : [];
+    // Use learnerCourses if available (inside popup)
+    // For table: calculate from courses × enrolled learners per dept
+    return courses.reduce((sum, course) => {
+      const hours = +course.duration_hours || 0;
+      // Count only attended learners from this dept
+      // We don't have per-dept enrollment counts from API
+      // So we calculate: attended_count proportional is wrong
+      // Correct: sum from enrollments scoped to dept
+      return sum;
     }, 0);
+  };
+
+  // For the popup: calculate from actual learnerCourses data
+  const getDeptHoursFromLearners = (learnerCoursesMap) => {
+    let total = 0;
+    Object.values(learnerCoursesMap).forEach(courses => {
+      courses.forEach(course => {
+        if (course.attended) {
+          total += +course.duration_hours || 0;
+        }
+      });
+    });
+    return total;
+  };
 
   const openDetail = async (dept) => {
     setSelected(dept);
@@ -91,7 +112,6 @@ function DepartmentsPage() {
         name:        form.name,
         hod:         form.hod,
         designation: form.designation,
-        population:  +form.population || 0,
       });
       if (newDept.id) {
         loadDepartments();
@@ -141,8 +161,8 @@ function DepartmentsPage() {
               <path d="M4 38 C4 28 16 24 24 24 C32 24 44 28 44 38" stroke="#051c2c" strokeWidth="2.5" fill="none"/>
             </svg>
           </div>
-          <div style={styles.statNum}>{totalPopulation}</div>
-          <div style={styles.statLbl}>TOTAL POPULATION</div>
+          <div style={styles.statNum}>{totalLearners}</div>
+          <div style={styles.statLbl}>ACTIVE LEARNERS</div>
         </div>
         <div style={styles.statCard}>
           <div style={styles.statIconWrap}>
@@ -218,16 +238,18 @@ function DepartmentsPage() {
                           {dept.name}
                         </button>
                       </td>
-                      <td style={{ ...styles.td, fontWeight: 600 }}>{dept.population || 0}</td>
+                      <td style={{ ...styles.td, fontWeight: 600 }}>{dept.learner_count || 0}</td>
                       <td style={{ ...styles.td, fontWeight: 600, color: '#15803d' }}>
                         {dept.learner_count || 0}
                       </td>
-                      <td style={{ ...styles.td, fontWeight: 600, color: '#991b1b' }}>0</td>
+                      <td style={{ ...styles.td, fontWeight: 600, color: '#991b1b' }}>
+                        {Math.max(0, (+dept.population || 0) - (+dept.learner_count || 0))}
+                      </td>
                       <td style={{ ...styles.td, fontWeight: 600 }}>
                         {dept.course_count || 0}
                       </td>
-                      <td style={{ ...styles.td, fontWeight: 600 }}>
-                        {totalHours > 0 ? totalHours + 'h' : '—'}
+                      <td style={{ ...styles.td, fontWeight: 600, color: '#5a6878' }}>
+                        Click View →
                       </td>
                       <td style={styles.td}>
                         <button style={styles.viewBtn} onClick={() => openDetail(dept)}>
@@ -273,7 +295,6 @@ function DepartmentsPage() {
                   <F label="Name of the Department *" value={form.name}        onChange={v => setForm({...form, name: v})}        placeholder="e.g. Marketing" />
                   <F label="Department Head"          value={form.hod}         onChange={v => setForm({...form, hod: v})}         placeholder="Full name" />
                   <F label="Designation"              value={form.designation} onChange={v => setForm({...form, designation: v})} placeholder="e.g. HR Director" />
-                  <F label="Department Population"    value={form.population}  onChange={v => setForm({...form, population: v})}  placeholder="e.g. 105" type="number" />
                 </div>
                 <div style={styles.photoUpload}>
                   <div style={styles.photoCircle}><span style={{ fontSize: '28px' }}>👤</span></div>
@@ -323,7 +344,15 @@ function DepartmentsPage() {
                   ['Total Learners',  deptLearners.length],
                   ['Active',          deptLearners.filter(l => l.status === 'Active').length],
                   ['Population',      selected.population || 0],
-                  ['Training Hours',  getDeptTotalHours() + 'h'],
+                  ['Training Hours',  (() => {
+                    let total = 0;
+                    Object.values(learnerCourses).forEach(lc => {
+                      lc.forEach(c => {
+                        if (c.attended) total += +c.duration_hours || 0;
+                      });
+                    });
+                    return total > 0 ? total + 'h' : '0h';
+                  })()],
                 ].map(([k, v]) => (
                   <div key={k} style={styles.profileStatCard}>
                     <div style={styles.profileStatNum}>{v}</div>
