@@ -12,7 +12,6 @@ function DepartmentsPage() {
   const [searchTerm,     setSearchTerm]     = useState('');
   const [loading,        setLoading]        = useState(true);
   const [currentPage,    setCurrentPage]    = useState(1);
-  const [courses,        setCourses]        = useState([]);
   const [deptLearners,   setDeptLearners]   = useState([]);
   const [deptLoading,    setDeptLoading]    = useState(false);
   const [learnerCourses, setLearnerCourses] = useState({});
@@ -24,7 +23,6 @@ function DepartmentsPage() {
 
   useEffect(() => {
     loadDepartments();
-    api.getCourses().then(data => { if (Array.isArray(data)) setCourses(data); });
   }, []);
 
   const loadDepartments = () => {
@@ -47,34 +45,7 @@ function DepartmentsPage() {
 
   const totalLearners   = departments.reduce((s, d) => s + (+d.learner_count || 0), 0);
 
-  // Calculate training hours for a SPECIFIC department's learners
-  const getDeptTrainingHours = (deptId) => {
-    const deptLearnerIds = departments
-      .find(d => d.id === deptId) ? [] : [];
-    // Use learnerCourses if available (inside popup)
-    // For table: calculate from courses × enrolled learners per dept
-    return courses.reduce((sum, course) => {
-      const hours = +course.duration_hours || 0;
-      // Count only attended learners from this dept
-      // We don't have per-dept enrollment counts from API
-      // So we calculate: attended_count proportional is wrong
-      // Correct: sum from enrollments scoped to dept
-      return sum;
-    }, 0);
-  };
 
-  // For the popup: calculate from actual learnerCourses data
-  const getDeptHoursFromLearners = (learnerCoursesMap) => {
-    let total = 0;
-    Object.values(learnerCoursesMap).forEach(courses => {
-      courses.forEach(course => {
-        if (course.attended) {
-          total += +course.duration_hours || 0;
-        }
-      });
-    });
-    return total;
-  };
 
   const openDetail = async (dept) => {
     setSelected(dept);
@@ -115,8 +86,7 @@ function DepartmentsPage() {
       });
       if (newDept.id) {
         loadDepartments();
-        setForm({ name: '', hod: '', designation: '', population: '' });
-        setShowAdd(false);
+setForm({ name: '', hod: '', designation: '' });        setShowAdd(false);
       } else {
         alert(newDept.error || 'Could not save department.');
       }
@@ -227,7 +197,6 @@ function DepartmentsPage() {
               </thead>
               <tbody>
                 {paginated.map((dept, i) => {
-                  const totalHours = getDeptTotalHours();
                   return (
                     <tr key={dept.id} style={styles.tr}>
                       <td style={styles.td}>
@@ -343,8 +312,7 @@ function DepartmentsPage() {
                 {[
                   ['Total Learners',  deptLearners.length],
                   ['Active',          deptLearners.filter(l => l.status === 'Active').length],
-                  ['Population',      selected.population || 0],
-                  ['Training Hours',  (() => {
+['Enrolled Courses', Object.values(learnerCourses).reduce((s, lc) => s + lc.length, 0)],                  ['Training Hours',  (() => {
                     let total = 0;
                     Object.values(learnerCourses).forEach(lc => {
                       lc.forEach(c => {
