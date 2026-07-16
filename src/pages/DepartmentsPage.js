@@ -217,8 +217,10 @@ setForm({ name: '', hod: '', designation: '' });        setShowAdd(false);
                       <td style={{ ...styles.td, fontWeight: 600 }}>
                         {dept.course_count || 0}
                       </td>
-                      <td style={{ ...styles.td, fontWeight: 600, color: '#5a6878' }}>
-                        Click View →
+                      <td style={{ ...styles.td, fontWeight: 600 }}>
+                        {+dept.total_training_hours > 0
+                          ? (+dept.total_training_hours) + 'h'
+                          : '—'}
                       </td>
                       <td style={styles.td}>
                         <button style={styles.viewBtn} onClick={() => openDetail(dept)}>
@@ -310,17 +312,10 @@ setForm({ name: '', hod: '', designation: '' });        setShowAdd(false);
               {/* Stats */}
               <div style={styles.profileStats}>
                 {[
-                  ['Total Learners',  deptLearners.length],
-                  ['Active',          deptLearners.filter(l => l.status === 'Active').length],
-['Enrolled Courses', Object.values(learnerCourses).reduce((s, lc) => s + lc.length, 0)],                  ['Training Hours',  (() => {
-                    let total = 0;
-                    Object.values(learnerCourses).forEach(lc => {
-                      lc.forEach(c => {
-                        if (c.attended) total += +c.duration_hours || 0;
-                      });
-                    });
-                    return total > 0 ? total + 'h' : '0h';
-                  })()],
+                  ['Total Learners',   deptLearners.length],
+                  ['Active',           deptLearners.filter(l => l.status === 'Active').length],
+                  ['Enrolled Courses', Object.values(learnerCourses).reduce((s, lc) => s + lc.length, 0)],
+                  ['Training Hours',   (+selected.total_training_hours > 0 ? +selected.total_training_hours + 'h' : '0h')],
                 ].map(([k, v]) => (
                   <div key={k} style={styles.profileStatCard}>
                     <div style={styles.profileStatNum}>{v}</div>
