@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import { pdf } from '@react-pdf/renderer';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 import api from '../api';
 import Pagination from '../components/Pagination';
+import { CertificatePDF } from '../components/CertificateTemplate';
+import { formatCertDate, safeFileName } from '../utils/certificateUtils';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -35,8 +40,18 @@ function CoursesPage({ user }) {
   const [mandCollapsed,    setMandCollapsed]    = useState(true);
   const [deptCourseIds,    setDeptCourseIds]    = useState(null);
   const [deptFilterLoading,setDeptFilterLoading]= useState(false);
-  const [qrPopup,          setQrPopup]          = useState(null);
-  const [courseTab, setCourseTab] = useState('overview');
+const [qrPopup,          setQrPopup]          = useState(null);
+  const [courseTab,        setCourseTab]         = useState('overview');
+  const [certLoading,      setCertLoading]       = useState(false);
+  const [certStatus,       setCertStatus]        = useState('');
+  const [certHistory,      setCertHistory]       = useState([]);
+  const [certHistLoading,  setCertHistLoading]   = useState(false);
+
+  // Signatory — update with real HOD/HR name
+  const SIGNATORY = {
+    title: 'Head of Human Resources',
+    name:  'Shaikha Al Suwaidi',
+  };
 const [materials, setMaterials] = useState([]);
 const [materialsLoading, setMaterialsLoading] = useState(false);
 const [uploadingMaterials, setUploadingMaterials] = useState(false);
@@ -131,13 +146,15 @@ const [uploadingMaterials, setUploadingMaterials] = useState(false);
     currentPage * ITEMS_PER_PAGE
   );
 
-  const openDetail = async (course) => {
+ const openDetail = async (course) => {
   setSelected(course);
   setDeptFilter('');
   setCourseTab('overview');
   setEnrollLoading(true);
   setEnrolledLearners([]);
   setMaterials([]);
+  setCertHistory([]);
+  setCertStatus('');
   try {
     const data = await api.getEnrollmentsByCourse(course.id);
     if (Array.isArray(data)) setEnrolledLearners(data);
@@ -146,6 +163,7 @@ const [uploadingMaterials, setUploadingMaterials] = useState(false);
   }
   setEnrollLoading(false);
   loadMaterials(course.id);
+  loadCertHistory(course.id);
 };
 
 const loadMaterials = async (courseId) => {
@@ -186,6 +204,85 @@ const handleDeleteMaterial = async (materialId) => {
     alert('Error deleting file.');
   }
 };
+// ── CERTIFICATES ──────────────────────────────────────────
+
+  const loadCertHistory = async (courseId) => {
+    setCertHistLoading(true);
+    try {
+      const data = await api.getCertificatesByCourse(courseId);
+      if (Array.isArray(data)) setCertHistory(data);
+      else setCertHistory([]);
+    } catch (err) {
+      setCertHistory([]);
+    }
+    setCertHistLoading(false);
+  };
+
+  const generateOneCertificate = async (learner, course, sequence) => {
+    // Issue record in DB first (idempotent)
+    const record = await api.issueCertificate(learner.id, course.id);
+    const certNo = record.certificate_no || `RAK-CERT-${new Date().getFullYear()}-${String(sequence).padStart(5, '0')}`;
+
+    const blob = await pdf(
+      <CertificatePDF
+        learnerName={learner.name}
+        courseTitle={course.title}
+        startDate={formatCertDate(course.start_date)}
+        endDate={formatCertDate(course.end_date)}
+        signatoryTitle={SIGNATORY.title}
+        signatoryName={SIGNATORY.name}
+        certificateNo={certNo}
+      />
+    ).toBlob();
+
+    return { blob, certNo, fileName: safeFileName(learner.name, course.title) };
+  };
+
+  const handleGenerateOneCert = async (learner) => {
+    if (!learner.attended) {
+      alert('This learner has not attended the course and is not eligible for a certificate.');
+      return;
+    }
+    setCertLoading(true);
+    setCertStatus('Generating certificate...');
+    try {
+      const { blob, fileName } = await generateOneCertificate(learner, selected, 1);
+      saveAs(blob, fileName);
+      setCertStatus('✅ Certificate downloaded!');
+      loadCertHistory(selected.id);
+    } catch (err) {
+      setCertStatus('❌ Error generating certificate.');
+    }
+    setCertLoading(false);
+    setTimeout(() => setCertStatus(''), 3000);
+  };
+
+  const handleGenerateAllCerts = async () => {
+    const eligible = enrolledLearners.filter(l => l.attended);
+    if (eligible.length === 0) {
+      alert('No attended learners found. Certificates can only be generated for learners who attended.');
+      return;
+    }
+    setCertLoading(true);
+    setCertStatus(`Generating ${eligible.length} certificate(s)...`);
+    try {
+      const zip = new JSZip();
+      for (let i = 0; i < eligible.length; i++) {
+        const learner = eligible[i];
+        setCertStatus(`Generating ${i + 1} of ${eligible.length}: ${learner.name}...`);
+        const { blob, fileName } = await generateOneCertificate(learner, selected, i + 1);
+        zip.file(fileName, blob);
+      }
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      saveAs(zipBlob, `${selected.title} — Certificates.zip`);
+      setCertStatus(`✅ ${eligible.length} certificate(s) downloaded as ZIP!`);
+      loadCertHistory(selected.id);
+    } catch (err) {
+      setCertStatus('❌ Error generating certificates.');
+    }
+    setCertLoading(false);
+    setTimeout(() => setCertStatus(''), 4000);
+  };
 
 const fileIcon = (type) => {
   if (!type) return '📄';
@@ -625,14 +722,19 @@ const fmtFileSize = (bytes) => {
               <button style={styles.modalClose} onClick={() => { setSelected(null); setProfileLearner(null); setDeptFilter(''); }}>×</button>
             </div>
             <div style={{ display: 'flex', gap: '4px', padding: '0 24px', borderBottom: '1px solid #e8ecf0', background: '#f8f9fa' }}>
-  {['overview', 'learners', 'materials'].map(tab => (
-    <button key={tab} onClick={() => setCourseTab(tab)} style={{
+  {[
+    { key: 'overview',      label: 'Overview' },
+    { key: 'learners',      label: 'Learners' },
+    { key: 'materials',     label: `Materials (${materials.length})` },
+    { key: 'certificates',  label: `Certificates (${certHistory.length})` },
+  ].map(({ key, label }) => (
+    <button key={key} onClick={() => setCourseTab(key)} style={{
       padding: '12px 16px', background: 'none', border: 'none',
-      borderBottom: courseTab === tab ? '2px solid #051c2c' : '2px solid transparent',
+      borderBottom: courseTab === key ? '2px solid #051c2c' : '2px solid transparent',
       fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
-      color: courseTab === tab ? '#051c2c' : '#9baabb', textTransform: 'capitalize',
+      color: courseTab === key ? '#051c2c' : '#9baabb',
     }}>
-      {tab === 'materials' ? `Materials (${materials.length})` : tab}
+      {label}
     </button>
   ))}
 </div>
@@ -861,7 +963,129 @@ const fmtFileSize = (bytes) => {
                   )}
                 </div>
               )}
+{courseTab === 'certificates' && !isHod && (
+                <div>
+                  {/* Generate buttons */}
+                  <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <button
+                      onClick={handleGenerateAllCerts}
+                      disabled={certLoading || enrolledLearners.filter(l => l.attended).length === 0}
+                      style={{
+                        background: certLoading ? '#f2f4f6' : '#051c2c',
+                        color: certLoading ? '#9baabb' : '#ffffff',
+                        border: 'none', borderRadius: '8px', padding: '10px 18px',
+                        fontSize: '13px', fontWeight: '600', cursor: certLoading ? 'default' : 'pointer',
+                        fontFamily: 'Inter, sans-serif',
+                      }}
+                    >
+                      {certLoading ? '⏳ Generating...' : `🎓 Generate All (${enrolledLearners.filter(l => l.attended).length} eligible)`}
+                    </button>
+                    {certStatus && (
+                      <span style={{ fontSize: '13px', color: certStatus.startsWith('✅') ? '#15803d' : certStatus.startsWith('❌') ? '#dc2626' : '#5a6878' }}>
+                        {certStatus}
+                      </span>
+                    )}
+                  </div>
 
+                  {/* Per-learner list */}
+                  <div style={styles.sectionLabel}>
+                    Eligible Learners
+                    <span style={{ fontSize: '11px', color: '#9baabb', fontWeight: '400', marginLeft: '8px' }}>
+                      only attended learners can receive certificates
+                    </span>
+                  </div>
+
+                  {enrollLoading ? (
+                    <div style={{ padding: '20px', textAlign: 'center', color: '#9baabb' }}>Loading learners...</div>
+                  ) : enrolledLearners.length === 0 ? (
+                    <div style={{ padding: '20px', textAlign: 'center', color: '#9baabb', fontSize: '13px' }}>No learners enrolled in this course.</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
+                      {enrolledLearners.map(learner => {
+                        const alreadyIssued = certHistory.some(c => c.learner_name === learner.name);
+                        return (
+                          <div key={learner.id} style={{
+                            display: 'flex', alignItems: 'center', gap: '12px',
+                            padding: '12px 14px', borderRadius: '8px',
+                            border: `1px solid ${learner.attended ? '#86efac' : '#e8ecf0'}`,
+                            background: learner.attended ? '#f0fdf4' : '#f8f9fa',
+                          }}>
+                            <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#051c2c', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: '700', flexShrink: 0 }}>
+                              {learner.name.split(' ').slice(0,2).map(w => w[0]).join('')}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: '13px', fontWeight: '600', color: '#051c2c' }}>{learner.name}</div>
+                              <div style={{ fontSize: '11px', color: '#9baabb', marginTop: '2px' }}>
+                                {learner.emp_id || '—'} · {learner.department_name || '—'}
+                              </div>
+                            </div>
+                            {learner.attended ? (
+                              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                {alreadyIssued && (
+                                  <span style={{ fontSize: '11px', color: '#15803d', background: '#dcfce7', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>
+                                    ✓ Issued
+                                  </span>
+                                )}
+                                <button
+                                  onClick={() => handleGenerateOneCert(learner)}
+                                  disabled={certLoading}
+                                  style={{ background: '#051c2c', color: '#ffffff', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: '600', cursor: certLoading ? 'default' : 'pointer', fontFamily: 'Inter, sans-serif' }}
+                                >
+                                  {alreadyIssued ? '🔄 Regenerate' : '🎓 Generate'}
+                                </button>
+                              </div>
+                            ) : (
+                              <span style={{ fontSize: '11px', color: '#9baabb', fontStyle: 'italic' }}>
+                                Not eligible — absent
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Certificate history */}
+                  <div style={styles.sectionLabel}>
+                    Certificate History
+                    <span style={{ fontSize: '11px', color: '#9baabb', fontWeight: '400', marginLeft: '8px' }}>
+                      {certHistory.length} issued
+                    </span>
+                  </div>
+                  {certHistLoading ? (
+                    <div style={{ padding: '20px', textAlign: 'center', color: '#9baabb' }}>Loading...</div>
+                  ) : certHistory.length > 0 ? (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ background: '#f8f9fa', borderBottom: '1px solid #e8ecf0' }}>
+                            {['Learner', 'Emp ID', 'Certificate No', 'Issued On', 'Issued By'].map(h => (
+                              <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10px', fontWeight: '700', color: '#9baabb', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {certHistory.map(cert => (
+                            <tr key={cert.id} style={{ borderBottom: '1px solid #f0f2f4' }}>
+                              <td style={{ padding: '10px 12px', fontSize: '13px', fontWeight: '600', color: '#051c2c' }}>{cert.learner_name}</td>
+                              <td style={{ padding: '10px 12px', fontSize: '12px', fontFamily: 'monospace', color: '#5a6878' }}>{cert.emp_id}</td>
+                              <td style={{ padding: '10px 12px', fontSize: '12px', fontFamily: 'monospace', color: '#0369a1', fontWeight: '600' }}>{cert.certificate_no}</td>
+                              <td style={{ padding: '10px 12px', fontSize: '12px', color: '#5a6878' }}>
+                                {cert.issued_at ? new Date(cert.issued_at).toLocaleDateString('en-GB') : '—'}
+                              </td>
+                              <td style={{ padding: '10px 12px', fontSize: '12px', color: '#5a6878' }}>{cert.issued_by_name || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div style={{ padding: '20px', textAlign: 'center', color: '#9baabb', fontSize: '13px', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #e8ecf0' }}>
+                      No certificates issued yet for this course.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <div style={styles.modalFooter}>
               <button style={styles.cancelBtn} onClick={() => { setSelected(null); setProfileLearner(null); setDeptFilter(''); }}>Close</button>              {!isHod && (
@@ -892,8 +1116,15 @@ const fmtFileSize = (bytes) => {
                   >
                     📝 Send Feedback Form
                   </button>
-                  <button style={styles.saveBtn} onClick={() => { setSelected(null); openEdit(selected); }}>Edit Course</button>
-                </>
+{selected.type === 'Internal' && (+selected.attended_count || 0) > 0 && (
+                    <button
+                      onClick={() => setCourseTab('certificates')}
+                      style={{ ...styles.cancelBtn, background: '#fef9c3', color: '#a16207', border: 'none' }}
+                    >
+                      🎓 Certificates
+                    </button>
+                  )}
+                  <button style={styles.saveBtn} onClick={() => { setSelected(null); openEdit(selected); }}>Edit Course</button>                </>
               )}
             </div>
           </div>

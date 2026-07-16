@@ -360,6 +360,30 @@ deleteCourseMaterial: (materialId) =>
     });
     return response.json();
   },
+  // ── CERTIFICATES ──────────────────────────────────────────
+  getCertificatesByCourse: (courseId) =>
+    fetch(`${BASE_URL}/certificates/course/${courseId}`, {
+      headers: headers(),
+    }).then(r => r.json()),
+
+  getCertificatesByLearner: (learnerId) =>
+    fetch(`${BASE_URL}/certificates/learner/${learnerId}`, {
+      headers: headers(),
+    }).then(r => r.json()),
+
+  issueCertificate: (learnerId, courseId) =>
+    fetch(`${BASE_URL}/certificates`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ learner_id: learnerId, course_id: courseId }),
+    }).then(r => r.json()),
+
+  regenerateCertificate: (learnerId, courseId) =>
+    fetch(`${BASE_URL}/certificates/regenerate`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ learner_id: learnerId, course_id: courseId }),
+    }).then(r => r.json()),
 
   deleteMaterial: (materialId) =>
     fetch(`${BASE_URL}/materials/${materialId}`, {
@@ -380,5 +404,6 @@ deleteCourseMaterial: (materialId) =>
       body: JSON.stringify({ year, amount, notes }),
     }).then(r => r.json()),
 };
+
 
 export default api;
