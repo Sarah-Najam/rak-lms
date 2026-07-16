@@ -396,7 +396,7 @@ function ReportsPage({ user }) {
             {fmtAED(budget?.spentToDate || 0)}
           </div>
           <div style={{ fontSize: '10px', color: '#9baabb', marginTop: '6px' }}>
-            {yearCalEntries.filter(e => +e.cost > 0).length} entries with cost · click to view →
+            {yearCalEntries.filter(e => +e.cost > 0 && e.status === 'Completed').length} completed entries · click to view →
           </div>
         </button>
 
