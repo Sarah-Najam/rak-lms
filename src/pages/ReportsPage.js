@@ -229,7 +229,7 @@ function ReportsPage({ user }) {
       title: `Training Spend — ${selectedYear}`,
       headers: ['Training Name', 'Department', 'Type', 'Status', 'Cost (AED)'],
       rows: yearCalEntries
-        .filter(e => +e.cost > 0)
+        .filter(e => +e.cost > 0 && e.status === 'Completed')
         .sort((a, b) => (+b.cost || 0) - (+a.cost || 0))
         .map(e => [
           e.training_name,
