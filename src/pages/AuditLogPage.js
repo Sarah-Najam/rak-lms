@@ -376,19 +376,37 @@ export default function AuditLogPage() {
                     </div>
                   </div>
                 ) : newVal && !oldVal ? (
-                  <div>
-                    <div style={styles.sectionLabel}>Created Record</div>
-                    <pre style={{ background: '#f8f9fa', borderRadius: '8px', padding: '14px', fontSize: '12px', overflow: 'auto', maxHeight: '320px', border: '1px solid #e8ecf0', color: '#051c2c', fontFamily: 'monospace' }}>
-                      {JSON.stringify(newVal, null, 2)}
-                    </pre>
-                  </div>
+  <div>
+    <div style={styles.sectionLabel}>Created Record</div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      {Object.entries(newVal).filter(([k]) => !SKIP_FIELDS.includes(k)).map(([k, v]) => (
+        <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '8px 12px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #86efac', gap: '12px' }}>
+          <span style={{ fontSize: '11px', fontWeight: '700', color: '#166534', textTransform: 'uppercase', letterSpacing: '0.5px', flexShrink: 0 }}>
+            {k.replace(/_/g, ' ')}
+          </span>
+          <span style={{ fontSize: '13px', color: '#15803d', fontWeight: '500', textAlign: 'right', wordBreak: 'break-word' }}>
+            {v === null || v === undefined ? '—' : String(v)}
+          </span>
+        </div>
+      ))}
+    </div>
+  </div>
                 ) : oldVal && !newVal ? (
-                  <div>
-                    <div style={{ ...styles.sectionLabel, color: '#991b1b' }}>Deleted Record</div>
-                    <pre style={{ background: '#fee2e2', borderRadius: '8px', padding: '14px', fontSize: '12px', overflow: 'auto', maxHeight: '320px', border: '1px solid #fca5a5', color: '#991b1b', fontFamily: 'monospace' }}>
-                      {JSON.stringify(oldVal, null, 2)}
-                    </pre>
-                  </div>
+  <div>
+    <div style={{ ...styles.sectionLabel, color: '#991b1b' }}>Deleted Record</div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      {Object.entries(oldVal).filter(([k]) => !SKIP_FIELDS.includes(k)).map(([k, v]) => (
+        <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '8px 12px', background: '#fee2e2', borderRadius: '8px', border: '1px solid #fca5a5', gap: '12px' }}>
+          <span style={{ fontSize: '11px', fontWeight: '700', color: '#991b1b', textTransform: 'uppercase', letterSpacing: '0.5px', flexShrink: 0 }}>
+            {k.replace(/_/g, ' ')}
+          </span>
+          <span style={{ fontSize: '13px', color: '#991b1b', fontWeight: '500', textAlign: 'right', wordBreak: 'break-word' }}>
+            {v === null || v === undefined ? '—' : String(v)}
+          </span>
+        </div>
+      ))}
+    </div>
+  </div>
                 ) : (
                   <div style={{ color: '#9baabb', fontSize: '13px', textAlign: 'center', padding: '20px' }}>
                     No field differences detected.
