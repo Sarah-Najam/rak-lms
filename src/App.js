@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import AuditLogPage from './pages/AuditLogPage';
 import Sidebar         from './components/Sidebar';
 import CheckinPage     from './pages/CheckinPage';
 import CourseCheckinPage from './pages/CourseCheckinPage';
@@ -17,7 +18,7 @@ import CompliancePage  from './pages/CompliancePage';
 import SetPasswordPage from './pages/SetPasswordPage';
 
 // Pages HOD is NOT allowed to access
-const HOD_BLOCKED_PAGES = ['departments', 'trainers', 'calendar', 'settings'];
+const HOD_BLOCKED_PAGES = ['departments', 'trainers', 'calendar', 'settings', 'audit'];
 function App() {
 
   const [currentUser, setCurrentUser] = useState(null);
@@ -125,6 +126,7 @@ React.useEffect(() => {
     reports:     'Reports',
     settings:    'Settings',
     compliance:  'Mandatory Training Compliance',
+    audit: 'Audit Log',
   };
 
   const renderPage = () => {
@@ -145,6 +147,7 @@ React.useEffect(() => {
       case 'reports':     return <ReportsPage      user={currentUser} />;
       case 'settings':    return <SettingsPage     user={currentUser} />;
       case 'compliance':  return <CompliancePage   user={currentUser} />;
+      case 'audit': return <AuditLogPage user={currentUser} />;
       default:            return <DashboardPage    user={currentUser} />;
     }
   };

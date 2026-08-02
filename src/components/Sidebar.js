@@ -11,6 +11,7 @@ const ADMIN_LINKS = [
   { id: 'reports',     label: 'Reports',           icon: '◧' },
   { id: 'compliance',  label: 'Compliance',        icon: '✅' },
   { id: 'settings',    label: 'Settings',          icon: '⚙' },
+  { id: 'audit', label: 'Audit Log', icon: '📋' },
 ];
 
 const HOD_LINKS = [

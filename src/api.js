@@ -403,6 +403,32 @@ deleteCourseMaterial: (materialId) =>
       headers: headers(),
       body: JSON.stringify({ year, amount, notes }),
     }).then(r => r.json()),
+
+    getAuditLogs: (params = {}) => {
+    const query = new URLSearchParams();
+    if (params.page)     query.append('page',     params.page);
+    if (params.limit)    query.append('limit',    params.limit);
+    if (params.action)   query.append('action',   params.action);
+    if (params.entity)   query.append('entity',   params.entity);
+    if (params.userId)   query.append('userId',   params.userId);
+    if (params.dateFrom) query.append('dateFrom', params.dateFrom);
+    if (params.dateTo)   query.append('dateTo',   params.dateTo);
+    if (params.search)   query.append('search',   params.search);
+    const qs = query.toString();
+    return fetch(`${BASE_URL}/audit${qs ? '?' + qs : ''}`, {
+      headers: headers(),
+    }).then(r => r.json());
+  },
+
+  getAuditActions: () =>
+    fetch(`${BASE_URL}/audit/actions`, {
+      headers: headers(),
+    }).then(r => r.json()),
+
+  getAuditUsers: () =>
+    fetch(`${BASE_URL}/audit/users`, {
+      headers: headers(),
+    }).then(r => r.json()),
 };
 
 
