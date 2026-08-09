@@ -429,6 +429,18 @@ deleteCourseMaterial: (materialId) =>
     fetch(`${BASE_URL}/audit/users`, {
       headers: headers(),
     }).then(r => r.json()),
+
+    transferLearner: (learnerId, data) =>
+    fetch(`${BASE_URL}/learners/${learnerId}/transfer`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify(data),
+    }).then(r => r.json()),
+
+  getLearnerTransferHistory: (learnerId) =>
+    fetch(`${BASE_URL}/learners/${learnerId}/transfer-history`, {
+      headers: headers(),
+    }).then(r => r.json()),
 };
 
 

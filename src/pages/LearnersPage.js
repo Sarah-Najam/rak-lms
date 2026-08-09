@@ -30,33 +30,38 @@ function bracketColor(bracket) {
   return map[bracket] || { bg: '#f1f5f9', color: '#5a6878' };
 }
 
-
 function LearnersPage({ user }) {
 
   const isHod = user?.role === 'hod';
 
-  const [activeTab,      setActiveTab]      = useState('all');
-  const [showModal,      setShowModal]      = useState(false);
-  const [showEdit,       setShowEdit]       = useState(false);
-  const [showProfile,    setShowProfile]    = useState(false);
-  const [showAssign,     setShowAssign]     = useState(false);
-  const [actionMenu,     setActionMenu]     = useState(null);
-  const [searchName,     setSearchName]     = useState('');
-  const [searchId,       setSearchId]       = useState('');
-  const [searchEmail,    setSearchEmail]    = useState('');
-  const [learners,       setLearners]       = useState([]);
-  const [departments,    setDepartments]    = useState([]);
-  const [allCourses,     setAllCourses]     = useState([]);
-  const [enrolled,       setEnrolled]       = useState([]);
-  const [profileCourses, setProfileCourses] = useState([]);
-  const [profileLoading, setProfileLoading] = useState(false);
-  const [assignLoading,  setAssignLoading]  = useState(false);
-  const [loading,        setLoading]        = useState(true);
-  const [selected,       setSelected]       = useState(null);
-  const [currentPage,    setCurrentPage]    = useState(1);
-  const [enrollStats,    setEnrollStats]    = useState({ enrolled: 0, attended: 0 });
-  const [photoPreview,   setPhotoPreview]   = useState(null);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [activeTab,        setActiveTab]        = useState('all');
+  const [showModal,        setShowModal]         = useState(false);
+  const [showEdit,         setShowEdit]          = useState(false);
+  const [showProfile,      setShowProfile]       = useState(false);
+  const [showAssign,       setShowAssign]        = useState(false);
+  const [showTransfer,     setShowTransfer]      = useState(false);
+  const [actionMenu,       setActionMenu]        = useState(null);
+  const [searchName,       setSearchName]        = useState('');
+  const [searchId,         setSearchId]          = useState('');
+  const [searchEmail,      setSearchEmail]       = useState('');
+  const [learners,         setLearners]          = useState([]);
+  const [departments,      setDepartments]       = useState([]);
+  const [allCourses,       setAllCourses]        = useState([]);
+  const [enrolled,         setEnrolled]          = useState([]);
+  const [profileCourses,   setProfileCourses]    = useState([]);
+  const [profileLoading,   setProfileLoading]    = useState(false);
+  const [assignLoading,    setAssignLoading]     = useState(false);
+  const [loading,          setLoading]           = useState(true);
+  const [selected,         setSelected]          = useState(null);
+  const [currentPage,      setCurrentPage]       = useState(1);
+  const [enrollStats,      setEnrollStats]       = useState({ enrolled: 0, attended: 0 });
+  const [photoPreview,     setPhotoPreview]      = useState(null);
+  const [uploadingPhoto,   setUploadingPhoto]    = useState(false);
+  const [transferHistory,  setTransferHistory]   = useState([]);
+  const [transferLoading,  setTransferLoading]   = useState(false);
+  const [transferSaving,   setTransferSaving]    = useState(false);
+  const [transferForm,     setTransferForm]      = useState({ toDeptId: '', reason: '', effectiveDate: new Date().toISOString().split('T')[0] });
+  const [transferError,    setTransferError]     = useState('');
 
   const emptyForm = {
     empId: '', name: '', nationality: '', designation: '',
@@ -89,24 +94,18 @@ function LearnersPage({ user }) {
 
   const handlePhotoUpload = async (learnerId, file) => {
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      alert('File too large. Maximum size is 5MB.');
-      return;
-    }
+    if (file.size > 5 * 1024 * 1024) { alert('File too large. Maximum size is 5MB.'); return; }
     setUploadingPhoto(true);
     try {
       const result = await api.uploadLearnerPhoto(learnerId, file);
       if (result.url) {
         loadLearners();
-        if (selected && selected.id === learnerId) {
+        if (selected && selected.id === learnerId)
           setSelected(prev => ({ ...prev, profile_photo: result.url }));
-        }
       } else {
         alert(result.error || 'Upload failed.');
       }
-    } catch (err) {
-      alert('Error uploading photo.');
-    }
+    } catch { alert('Error uploading photo.'); }
     setUploadingPhoto(false);
   };
 
@@ -116,13 +115,50 @@ function LearnersPage({ user }) {
       const result = await api.removeLearnerPhoto(learnerId);
       if (result.message) {
         loadLearners();
-        if (selected && selected.id === learnerId) {
+        if (selected && selected.id === learnerId)
           setSelected(prev => ({ ...prev, profile_photo: null }));
-        }
       }
-    } catch (err) {
-      alert('Error removing photo.');
-    }
+    } catch { alert('Error removing photo.'); }
+  };
+
+  const openTransfer = async (learner) => {
+    setSelected(learner);
+    setTransferForm({ toDeptId: '', reason: '', effectiveDate: new Date().toISOString().split('T')[0] });
+    setTransferError('');
+    setShowTransfer(true);
+    setShowProfile(false);
+    setActionMenu(null);
+    setTransferLoading(true);
+    try {
+      const history = await api.getLearnerTransferHistory(learner.id);
+      if (Array.isArray(history)) setTransferHistory(history);
+      else setTransferHistory([]);
+    } catch { setTransferHistory([]); }
+    setTransferLoading(false);
+  };
+
+  const handleTransfer = async () => {
+    if (!transferForm.toDeptId) { setTransferError('Please select a department.'); return; }
+    if (!transferForm.effectiveDate) { setTransferError('Please set an effective date.'); return; }
+    setTransferSaving(true);
+    setTransferError('');
+    try {
+      const result = await api.transferLearner(selected.id, {
+        to_dept_id:     parseInt(transferForm.toDeptId),
+        reason:         transferForm.reason || null,
+        effective_date: transferForm.effectiveDate,
+      });
+      if (result.message) {
+        loadLearners();
+        setShowTransfer(false);
+        setTransferForm({ toDeptId: '', reason: '', effectiveDate: new Date().toISOString().split('T')[0] });
+        setTransferHistory([]);
+        alert(`✅ ${result.message}`);
+      } else {
+        setTransferError(result.error || 'Could not complete transfer.');
+      }
+    } catch { setTransferError('Error connecting to server.'); }
+    setTransferSaving(false);
   };
 
   const emiratiLearners = learners.filter(l => l.nationality === 'Emirati');
@@ -151,85 +187,54 @@ function LearnersPage({ user }) {
     currentPage * ITEMS_PER_PAGE
   );
 
-  const totalTrainingHours = profileCourses.reduce((s, c) => {
-    if (c.attended) return s + (+c.duration_hours || 0);
-    return s;
-  }, 0);
-
-  const completedCount = profileCourses.filter(c =>
-    c.enrollment_status === 'Attended' || c.enrollment_status === 'Completed' || c.attended
-  ).length;
-  const enrolledCount = profileCourses.length;
+  const totalTrainingHours = profileCourses.reduce((s, c) => c.attended ? s + (+c.duration_hours || 0) : s, 0);
+  const completedCount     = profileCourses.filter(c => c.enrollment_status === 'Attended' || c.enrollment_status === 'Completed' || c.attended).length;
+  const enrolledCount      = profileCourses.length;
 
   const handleSave = async () => {
     if (!form.empId || !form.name) { alert('Emp ID and Name are required.'); return; }
     try {
       const newLearner = await api.addLearner({
-        emp_id:          form.empId,
-        name:            form.name,
-        gender:          form.gender,
-        nationality:     form.nationality,
-        department_id:   form.department ? parseInt(form.department) : null,
-        email:           form.email,
-        designation:     form.designation,
-        status:          form.status,
-        learner_level:   form.learnerLevel,
-        date_of_birth:   form.dateOfBirth || null,
+        emp_id: form.empId, name: form.name, gender: form.gender,
+        nationality: form.nationality,
+        department_id: form.department ? parseInt(form.department) : null,
+        email: form.email, designation: form.designation, status: form.status,
+        learner_level: form.learnerLevel,
+        date_of_birth: form.dateOfBirth || null,
         date_of_joining: form.dateOfJoining || null,
       });
-      if (newLearner.id) {
-        loadLearners();
-        setForm(emptyForm);
-        setShowModal(false);
-      } else {
-        alert(newLearner.error || 'Could not save learner.');
-      }
-    } catch (err) {
-      alert('Error connecting to server.');
-    }
+      if (newLearner.id) { loadLearners(); setForm(emptyForm); setShowModal(false); }
+      else alert(newLearner.error || 'Could not save learner.');
+    } catch { alert('Error connecting to server.'); }
   };
 
   const handleEditSave = async () => {
     if (!editForm.name) { alert('Name is required.'); return; }
     try {
       const updated = await api.updateLearner(selected.id, {
-        name:            editForm.name,
-        gender:          editForm.gender,
-        nationality:     editForm.nationality,
-        department_id:   editForm.department ? parseInt(editForm.department) : null,
-        email:           editForm.email,
-        designation:     editForm.designation,
-        status:          editForm.status,
-        learner_level:   editForm.learnerLevel,
-        date_of_birth:   editForm.dateOfBirth || null,
+        name: editForm.name, gender: editForm.gender,
+        nationality: editForm.nationality,
+        department_id: editForm.department ? parseInt(editForm.department) : null,
+        email: editForm.email, designation: editForm.designation, status: editForm.status,
+        learner_level: editForm.learnerLevel,
+        date_of_birth: editForm.dateOfBirth || null,
         date_of_joining: editForm.dateOfJoining || null,
       });
-      if (updated.id) {
-        loadLearners();
-        setShowEdit(false);
-        setSelected(null);
-      } else {
-        alert(updated.error || 'Could not update learner.');
-      }
-    } catch (err) {
-      alert('Error connecting to server.');
-    }
+      if (updated.id) { loadLearners(); setShowEdit(false); setSelected(null); }
+      else alert(updated.error || 'Could not update learner.');
+    } catch { alert('Error connecting to server.'); }
   };
 
   const openEdit = (learner) => {
     setSelected(learner);
     setEditForm({
-      empId:          learner.emp_id          || '',
-      name:           learner.name            || '',
-      nationality:    learner.nationality     || '',
-      designation:    learner.designation     || '',
-      department:     learner.department_id   || '',
-      email:          learner.email           || '',
-      gender:         learner.gender          || '',
-      status:         learner.status          || 'Active',
-      learnerLevel:   learner.learner_level   || '',
-      dateOfBirth:    learner.date_of_birth   ? learner.date_of_birth.split('T')[0]   : '',
-      dateOfJoining:  learner.date_of_joining ? learner.date_of_joining.split('T')[0] : '',
+      empId: learner.emp_id || '', name: learner.name || '',
+      nationality: learner.nationality || '', designation: learner.designation || '',
+      department: learner.department_id || '', email: learner.email || '',
+      gender: learner.gender || '', status: learner.status || 'Active',
+      learnerLevel: learner.learner_level || '',
+      dateOfBirth:   learner.date_of_birth   ? learner.date_of_birth.split('T')[0]   : '',
+      dateOfJoining: learner.date_of_joining ? learner.date_of_joining.split('T')[0] : '',
     });
     setShowEdit(true);
     setActionMenu(null);
@@ -243,9 +248,7 @@ function LearnersPage({ user }) {
       const courses = await api.getEnrollmentsByLearner(learner.id);
       if (Array.isArray(courses)) setProfileCourses(courses);
       else setProfileCourses([]);
-    } catch (err) {
-      setProfileCourses([]);
-    }
+    } catch { setProfileCourses([]); }
     setProfileLoading(false);
   };
 
@@ -256,12 +259,8 @@ function LearnersPage({ user }) {
     setActionMenu(null);
     try {
       const enrolledCourses = await api.getEnrollmentsByLearner(learner.id);
-      if (Array.isArray(enrolledCourses)) {
-        setEnrolled(enrolledCourses.map(c => c.id));
-      }
-    } catch (err) {
-      setEnrolled([]);
-    }
+      if (Array.isArray(enrolledCourses)) setEnrolled(enrolledCourses.map(c => c.id));
+    } catch { setEnrolled([]); }
     setAssignLoading(false);
   };
 
@@ -275,30 +274,22 @@ function LearnersPage({ user }) {
         await api.enrollLearner(selected.id, courseId);
         setEnrolled(prev => [...prev, courseId]);
       }
-    } catch (err) {
-      alert('Error updating enrollment.');
-    }
+    } catch { alert('Error updating enrollment.'); }
   };
 
   const handleToggleStatus = async (learner) => {
     const newStatus = learner.status === 'Active' ? 'Resigned/Terminated' : 'Active';
     try {
       await api.updateLearner(learner.id, {
-        name:            learner.name,
-        gender:          learner.gender,
-        nationality:     learner.nationality,
-        department_id:   learner.department_id,
-        email:           learner.email,
-        designation:     learner.designation,
-        status:          newStatus,
-        learner_level:   learner.learner_level,
-        date_of_birth:   learner.date_of_birth,
+        name: learner.name, gender: learner.gender, nationality: learner.nationality,
+        department_id: learner.department_id, email: learner.email,
+        designation: learner.designation, status: newStatus,
+        learner_level: learner.learner_level,
+        date_of_birth: learner.date_of_birth,
         date_of_joining: learner.date_of_joining,
       });
       loadLearners();
-    } catch (err) {
-      alert('Error updating learner status.');
-    }
+    } catch { alert('Error updating learner status.'); }
   };
 
   const levelBadge = (level) => {
@@ -315,34 +306,29 @@ function LearnersPage({ user }) {
     );
   };
 
+  const fmtDate = d => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+
   return (
     <div style={styles.page}>
 
-      {/* ── HOD BANNER ── */}
       {isHod && (
         <div style={styles.hodBanner}>
           👁 You are viewing your department's learners in read-only mode.
         </div>
       )}
 
-      {/* ── TABS ── */}
       <div style={styles.tabRow}>
-        <button
-          style={{ ...styles.tab, ...(activeTab === 'emirati' ? styles.tabActive : {}) }}
-          onClick={() => { setActiveTab('emirati'); setCurrentPage(1); }}
-        >
+        <button style={{ ...styles.tab, ...(activeTab === 'emirati' ? styles.tabActive : {}) }}
+          onClick={() => { setActiveTab('emirati'); setCurrentPage(1); }}>
           Emirati Learners
           {activeTab === 'emirati' && <span style={styles.tabTick}>✓</span>}
         </button>
-        <button
-          style={{ ...styles.tab, ...(activeTab === 'all' ? styles.tabActive : {}) }}
-          onClick={() => { setActiveTab('all'); setCurrentPage(1); }}
-        >
+        <button style={{ ...styles.tab, ...(activeTab === 'all' ? styles.tabActive : {}) }}
+          onClick={() => { setActiveTab('all'); setCurrentPage(1); }}>
           All Learners
         </button>
       </div>
 
-      {/* ── STATS ── */}
       <div style={styles.statsRow}>
         <MiniStatColor label="Total Learners"    value={activeTab === 'emirati' ? emiratiLearners.length : learners.length} color="#051C2C" />
         <MiniStatColor label="Active Learners"   value={activeTab === 'emirati' ? emiratiLearners.filter(l => l.status === 'Active').length : activeLearnersCount} color="#A5C8D2" textDark />
@@ -351,7 +337,6 @@ function LearnersPage({ user }) {
         <MiniStatColor label="Attended"          value={enrollStats.attended} color="#051C2C" sub="completed training" />
       </div>
 
-      {/* ── GENDER CARDS ── */}
       <div style={styles.genderRow}>
         {activeTab === 'all' ? (
           <>
@@ -393,7 +378,6 @@ function LearnersPage({ user }) {
         )}
       </div>
 
-      {/* ── TABLE HEADER ── */}
       <div style={styles.tableHeader}>
         <span style={styles.tableTitle}>
           {activeTab === 'all' ? 'All Learners' : 'Emirati Learners'}
@@ -418,14 +402,11 @@ function LearnersPage({ user }) {
               value={searchEmail} onChange={e => { setSearchEmail(e.target.value); setCurrentPage(1); }} />
           </div>
           {!isHod && (
-            <button style={styles.addBtn} onClick={() => setShowModal(true)}>
-              Add Learner
-            </button>
+            <button style={styles.addBtn} onClick={() => setShowModal(true)}>Add Learner</button>
           )}
         </div>
       </div>
 
-      {/* ── TABLE ── */}
       {loading ? (
         <div style={{ padding: '40px', textAlign: 'center', color: '#9baabb', fontSize: '14px' }}>
           Loading learners...
@@ -436,77 +417,62 @@ function LearnersPage({ user }) {
             <table style={{ ...styles.table, minWidth: '950px' }}>
               <thead>
                 <tr style={styles.tableHeadRow}>
-                 {['No.', 'Emp ID', 'Name', 'Age Bracket', 'Level', 'Designation', 'Department', 'Status',
-  ...(isHod ? [] : ['Action'])
-].map(h => (
-  <th key={h} style={styles.th}>{h}</th>
-))}
+                  {['No.', 'Emp ID', 'Name', 'Age Bracket', 'Level', 'Designation', 'Department', 'Status',
+                    ...(isHod ? [] : ['Action'])
+                  ].map(h => <th key={h} style={styles.th}>{h}</th>)}
                 </tr>
               </thead>
               <tbody>
                 {paginated.map((learner, index) => (
                   <tr key={learner.id} style={styles.tr}>
                     <td style={styles.td}>{(currentPage - 1) * ITEMS_PER_PAGE + index + 1}</td>
-                    <td style={styles.td}>
-                      <span style={styles.empId}>{learner.emp_id}</span>
-                    </td>
+                    <td style={styles.td}><span style={styles.empId}>{learner.emp_id}</span></td>
                     <td style={{ ...styles.td, minWidth: '180px' }}>
                       <div style={styles.nameCell}>
                         <div style={styles.avatar}>
                           {learner.profile_photo
-                            ? <img src={learner.profile_photo} alt={learner.name}
-                                style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                            ? <img src={learner.profile_photo} alt={learner.name} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                             : learner.name.split(' ').slice(0,2).map(w => w[0]).join('')
                           }
                         </div>
                         <button style={styles.learnerNameBtn} onClick={() => openProfile(learner)}>
                           {learner.name}
                         </button>
-                        {learner.status === 'Active' && (
-                          <span style={styles.activeTick}>✓</span>
-                        )}
+                        {learner.status === 'Active' && <span style={styles.activeTick}>✓</span>}
                       </div>
                     </td>
-{(() => {
-  const age = calcAge(learner.date_of_birth);
-  const bracket = ageBracket(age);
-  const c = bracketColor(bracket);
-  return (
-    <td style={styles.td}>
-      {bracket
-        ? <span style={{ background: c.bg, color: c.color, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600' }}>{bracket}</span>
-        : '—'}
-    </td>
-  );
-})()}                    <td style={styles.td}>{levelBadge(learner.learner_level)}</td>
+                    {(() => {
+                      const age     = calcAge(learner.date_of_birth);
+                      const bracket = ageBracket(age);
+                      const c       = bracketColor(bracket);
+                      return (
+                        <td style={styles.td}>
+                          {bracket
+                            ? <span style={{ background: c.bg, color: c.color, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600' }}>{bracket}</span>
+                            : '—'}
+                        </td>
+                      );
+                    })()}
+                    <td style={styles.td}>{levelBadge(learner.learner_level)}</td>
                     <td style={{ ...styles.td, whiteSpace: 'nowrap' }}>{learner.designation || '—'}</td>
                     <td style={{ ...styles.td, whiteSpace: 'nowrap' }}>{learner.department_name || '—'}</td>
                     <td style={styles.td}>
                       <span style={{
                         background: learner.status === 'Active' ? '#dcfce7' : '#fee2e2',
                         color:      learner.status === 'Active' ? '#15803d' : '#991b1b',
-                        padding: '3px 10px', borderRadius: '20px',
-                        fontSize: '11px', fontWeight: '600', whiteSpace: 'nowrap',
+                        padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600', whiteSpace: 'nowrap',
                       }}>
                         {learner.status}
                       </span>
                     </td>
                     {!isHod && (
                       <td style={{ ...styles.td, position: 'relative' }}>
-                        <button
-                          style={styles.actionBtn}
-                          onClick={() => setActionMenu(actionMenu === learner.id ? null : learner.id)}
-                        >
-                          ✏️
-                        </button>
+                        <button style={styles.actionBtn} onClick={() => setActionMenu(actionMenu === learner.id ? null : learner.id)}>✏️</button>
                         {actionMenu === learner.id && (
                           <div style={styles.actionMenu}>
-                            <button style={styles.actionMenuItem} onClick={() => openEdit(learner)}>
-                              ✏️ Edit
-                            </button>
-                            <button style={styles.actionMenuItem} onClick={() => openAssign(learner)}>
-                              📚 Assign Course
-                            </button>
+                            <button style={styles.actionMenuItem} onClick={() => openEdit(learner)}>✏️ Edit</button>
+                            <button style={styles.actionMenuItem} onClick={() => openAssign(learner)}>📚 Assign Course</button>
+                            <button style={styles.actionMenuItem} onClick={() => openTransfer(learner)}>🔄 Transfer Department</button>
                             <button
                               style={{ ...styles.actionMenuItem, color: learner.status === 'Active' ? '#991b1b' : '#15803d', fontWeight: '600' }}
                               onClick={() => { handleToggleStatus(learner); setActionMenu(null); }}
@@ -529,12 +495,7 @@ function LearnersPage({ user }) {
             </div>
           )}
 
-          <Pagination
-            currentPage={currentPage}
-            totalItems={filtered.length}
-            itemsPerPage={ITEMS_PER_PAGE}
-            onPageChange={setCurrentPage}
-          />
+          <Pagination currentPage={currentPage} totalItems={filtered.length} itemsPerPage={ITEMS_PER_PAGE} onPageChange={setCurrentPage} />
         </div>
       )}
 
@@ -551,14 +512,14 @@ function LearnersPage({ user }) {
                 📷 Profile photo can be added after saving via the learner profile popup.
               </div>
               <div style={styles.formGrid}>
-                <FormField label="Emp ID *"     value={form.empId}        onChange={v => setForm({...form, empId: v})}        placeholder="e.g. RAK-006" />
-                <FormField label="Name *"        value={form.name}         onChange={v => setForm({...form, name: v})}         placeholder="Full name" />
-                <FormField label="Nationality"   value={form.nationality}  onChange={v => setForm({...form, nationality: v})}  placeholder="e.g. Emirati" />
-                <FormField label="Designation"   value={form.designation}  onChange={v => setForm({...form, designation: v})}  placeholder="Job title" />
-                <FormField label="Department"    value={form.department}   onChange={v => setForm({...form, department: v})}   type="select" options={departments.map(d => ({ label: d.name, value: d.id }))} />
-                <FormField label="Email"         value={form.email}        onChange={v => setForm({...form, email: v})}        placeholder="name@rakprop.ae" type="email" />
-                <FormField label="Gender"        value={form.gender}       onChange={v => setForm({...form, gender: v})}       type="select" options={['Male', 'Female']} />
-                <FormField label="Learner Level" value={form.learnerLevel} onChange={v => setForm({...form, learnerLevel: v})} type="select" options={['Entry', 'Mid', 'Senior']} />
+                <FormField label="Emp ID *"        value={form.empId}        onChange={v => setForm({...form, empId: v})}        placeholder="e.g. RAK-006" />
+                <FormField label="Name *"           value={form.name}         onChange={v => setForm({...form, name: v})}         placeholder="Full name" />
+                <FormField label="Nationality"      value={form.nationality}  onChange={v => setForm({...form, nationality: v})}  placeholder="e.g. Emirati" />
+                <FormField label="Designation"      value={form.designation}  onChange={v => setForm({...form, designation: v})}  placeholder="Job title" />
+                <FormField label="Department"       value={form.department}   onChange={v => setForm({...form, department: v})}   type="select" options={departments.map(d => ({ label: d.name, value: d.id }))} />
+                <FormField label="Email"            value={form.email}        onChange={v => setForm({...form, email: v})}        placeholder="name@rakprop.ae" type="email" />
+                <FormField label="Gender"           value={form.gender}       onChange={v => setForm({...form, gender: v})}       type="select" options={['Male', 'Female']} />
+                <FormField label="Learner Level"    value={form.learnerLevel} onChange={v => setForm({...form, learnerLevel: v})} type="select" options={['Entry', 'Mid', 'Senior']} />
                 <FormField label="Date of Birth"    value={form.dateOfBirth}    onChange={v => setForm({...form, dateOfBirth: v})}    type="date" />
                 <FormField label="Date of Joining"  value={form.dateOfJoining}  onChange={v => setForm({...form, dateOfJoining: v})}  type="date" />
               </div>
@@ -595,14 +556,14 @@ function LearnersPage({ user }) {
             </div>
             <div style={styles.modalBody}>
               <div style={styles.formGrid}>
-                <FormField label="Emp ID"       value={editForm.empId}        onChange={v => setEditForm({...editForm, empId: v})}        placeholder="e.g. RAK-006" />
-                <FormField label="Name *"        value={editForm.name}         onChange={v => setEditForm({...editForm, name: v})}         placeholder="Full name" />
-                <FormField label="Nationality"   value={editForm.nationality}  onChange={v => setEditForm({...editForm, nationality: v})}  placeholder="e.g. Emirati" />
-                <FormField label="Designation"   value={editForm.designation}  onChange={v => setEditForm({...editForm, designation: v})}  placeholder="Job title" />
-                <FormField label="Department"    value={editForm.department}   onChange={v => setEditForm({...editForm, department: v})}   type="select" options={departments.map(d => ({ label: d.name, value: d.id }))} />
-                <FormField label="Email"         value={editForm.email}        onChange={v => setEditForm({...editForm, email: v})}        placeholder="name@rakprop.ae" type="email" />
-                <FormField label="Gender"        value={editForm.gender}       onChange={v => setEditForm({...editForm, gender: v})}       type="select" options={['Male', 'Female']} />
-                <FormField label="Learner Level" value={editForm.learnerLevel} onChange={v => setEditForm({...editForm, learnerLevel: v})} type="select" options={['Entry', 'Mid', 'Senior']} />
+                <FormField label="Emp ID"          value={editForm.empId}        onChange={v => setEditForm({...editForm, empId: v})}        placeholder="e.g. RAK-006" />
+                <FormField label="Name *"           value={editForm.name}         onChange={v => setEditForm({...editForm, name: v})}         placeholder="Full name" />
+                <FormField label="Nationality"      value={editForm.nationality}  onChange={v => setEditForm({...editForm, nationality: v})}  placeholder="e.g. Emirati" />
+                <FormField label="Designation"      value={editForm.designation}  onChange={v => setEditForm({...editForm, designation: v})}  placeholder="Job title" />
+                <FormField label="Department"       value={editForm.department}   onChange={v => setEditForm({...editForm, department: v})}   type="select" options={departments.map(d => ({ label: d.name, value: d.id }))} />
+                <FormField label="Email"            value={editForm.email}        onChange={v => setEditForm({...editForm, email: v})}        placeholder="name@rakprop.ae" type="email" />
+                <FormField label="Gender"           value={editForm.gender}       onChange={v => setEditForm({...editForm, gender: v})}       type="select" options={['Male', 'Female']} />
+                <FormField label="Learner Level"    value={editForm.learnerLevel} onChange={v => setEditForm({...editForm, learnerLevel: v})} type="select" options={['Entry', 'Mid', 'Senior']} />
                 <FormField label="Date of Birth"    value={editForm.dateOfBirth}    onChange={v => setEditForm({...editForm, dateOfBirth: v})}    type="date" />
                 <FormField label="Date of Joining"  value={editForm.dateOfJoining}  onChange={v => setEditForm({...editForm, dateOfJoining: v})}  type="date" />
               </div>
@@ -639,67 +600,37 @@ function LearnersPage({ user }) {
             </div>
             <div style={styles.modalBody}>
               <div style={styles.profileHeader}>
-
-                {/* Avatar with upload + remove + preview */}
                 <div style={{ position: 'relative', flexShrink: 0 }}>
                   <div
                     onClick={() => selected.profile_photo && setPhotoPreview(selected.profile_photo)}
-                    style={{
-                      ...styles.profileAvatar,
-                      cursor: selected.profile_photo ? 'zoom-in' : 'default',
-                      overflow: 'hidden',
-                    }}
+                    style={{ ...styles.profileAvatar, cursor: selected.profile_photo ? 'zoom-in' : 'default', overflow: 'hidden' }}
                   >
                     {selected.profile_photo
-                      ? <img src={selected.profile_photo} alt={selected.name}
-                          style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                      ? <img src={selected.profile_photo} alt={selected.name} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                       : selected.name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase()
                     }
                   </div>
-
-                  {/* Upload button */}
                   {!isHod && (
                     <label style={styles.photoUploadBtn} title="Upload photo">
                       {uploadingPhoto ? '⏳' : '📷'}
-                      <input type="file" accept="image/jpeg,image/png,image/webp"
-                        style={{ display: 'none' }}
+                      <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
                         onChange={e => handlePhotoUpload(selected.id, e.target.files[0])} />
                     </label>
                   )}
-
-                  {/* Remove button */}
                   {!isHod && selected.profile_photo && (
-                    <button
-                      onClick={() => handleRemovePhoto(selected.id)}
-                      title="Remove photo"
-                      style={{
-                        position: 'absolute', top: '-4px', right: '-28px',
-                        width: '22px', height: '22px', borderRadius: '50%',
-                        background: '#fee2e2', color: '#991b1b',
-                        border: '2px solid #ffffff', display: 'flex',
-                        alignItems: 'center', justifyContent: 'center',
-                        fontSize: '11px', cursor: 'pointer', fontWeight: '700',
-                        lineHeight: 1,
-                      }}
-                    >
+                    <button onClick={() => handleRemovePhoto(selected.id)} title="Remove photo"
+                      style={{ position: 'absolute', top: '-4px', right: '-28px', width: '22px', height: '22px', borderRadius: '50%', background: '#fee2e2', color: '#991b1b', border: '2px solid #ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', cursor: 'pointer', fontWeight: '700', lineHeight: 1 }}>
                       ✕
                     </button>
                   )}
                 </div>
-
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: '18px', fontWeight: '700', color: '#051c2c' }}>
-                    {selected.name}
-                  </div>
+                  <div style={{ fontSize: '18px', fontWeight: '700', color: '#051c2c' }}>{selected.name}</div>
                   <div style={{ fontSize: '13px', color: '#5a6878', marginTop: '3px' }}>
                     {selected.designation || '—'} · {selected.department_name || '—'}
                   </div>
                   <div style={{ marginTop: '8px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    <span style={{
-                      background: selected.status === 'Active' ? '#dcfce7' : '#fee2e2',
-                      color:      selected.status === 'Active' ? '#15803d' : '#991b1b',
-                      padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600',
-                    }}>
+                    <span style={{ background: selected.status === 'Active' ? '#dcfce7' : '#fee2e2', color: selected.status === 'Active' ? '#15803d' : '#991b1b', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600' }}>
                       {selected.status}
                     </span>
                     {selected.nationality && (
@@ -714,12 +645,9 @@ function LearnersPage({ user }) {
                     )}
                     {selected.learner_level && levelBadge(selected.learner_level)}
                   </div>
-                  {/* View full photo link */}
                   {selected.profile_photo && (
-                    <button
-                      onClick={() => setPhotoPreview(selected.profile_photo)}
-                      style={{ background: 'none', border: 'none', color: '#0369a1', cursor: 'pointer', fontSize: '11px', fontFamily: 'Inter, sans-serif', textDecoration: 'underline', padding: 0, marginTop: '6px' }}
-                    >
+                    <button onClick={() => setPhotoPreview(selected.profile_photo)}
+                      style={{ background: 'none', border: 'none', color: '#0369a1', cursor: 'pointer', fontSize: '11px', fontFamily: 'Inter, sans-serif', textDecoration: 'underline', padding: 0, marginTop: '6px' }}>
                       🔍 View full photo
                     </button>
                   )}
@@ -728,10 +656,10 @@ function LearnersPage({ user }) {
 
               <div style={styles.profileGrid}>
                 {[
-  ['Emp ID',      selected.emp_id || '—'],
-  ['Age Bracket', ageBracket(calcAge(selected.date_of_birth)) || '—'],
-  ['Email',       selected.email  || '—'],
-].map(([k, v]) => (
+                  ['Emp ID',      selected.emp_id || '—'],
+                  ['Age Bracket', ageBracket(calcAge(selected.date_of_birth)) || '—'],
+                  ['Email',       selected.email  || '—'],
+                ].map(([k, v]) => (
                   <div key={k} style={styles.profileInfoItem}>
                     <div style={styles.profileInfoLabel}>{k}</div>
                     <div style={styles.profileInfoValue}>{v}</div>
@@ -741,16 +669,14 @@ function LearnersPage({ user }) {
 
               <div style={styles.trainingStats}>
                 {[
-                  ['Courses Enrolled', enrolledCount,               '#051c2c'],
-                  ['Courses Attended', completedCount,               '#15803d'],
-                  ['Training Hours',   totalTrainingHours + 'h',     '#0369a1'],
-                  ['Pending',          enrolledCount - completedCount,'#a16207'],
+                  ['Courses Enrolled', enrolledCount,                '#051c2c'],
+                  ['Courses Attended', completedCount,                '#15803d'],
+                  ['Training Hours',   totalTrainingHours + 'h',      '#0369a1'],
+                  ['Pending',          enrolledCount - completedCount, '#a16207'],
                 ].map(([label, value, color]) => (
                   <div key={label} style={styles.trainingStat}>
                     <div style={{ fontSize: '22px', fontWeight: '800', color }}>{value}</div>
-                    <div style={{ fontSize: '10px', color: '#9baabb', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.4px', marginTop: '4px' }}>
-                      {label}
-                    </div>
+                    <div style={{ fontSize: '10px', color: '#9baabb', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.4px', marginTop: '4px' }}>{label}</div>
                   </div>
                 ))}
               </div>
@@ -763,62 +689,40 @@ function LearnersPage({ user }) {
                   </span>
                 </div>
                 {profileLoading ? (
-                  <div style={{ padding: '24px', textAlign: 'center', color: '#9baabb', fontSize: '13px' }}>
-                    Loading courses...
-                  </div>
+                  <div style={{ padding: '24px', textAlign: 'center', color: '#9baabb', fontSize: '13px' }}>Loading courses...</div>
                 ) : profileCourses.length > 0 ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {profileCourses.map(course => {
-                      const isDone = course.attended === true ||
-                        course.enrollment_status === 'Attended' ||
-                        course.enrollment_status === 'Completed';
+                      const isDone = course.attended === true || course.enrollment_status === 'Attended' || course.enrollment_status === 'Completed';
+                      const deptAtTime   = course.dept_name_at_enrollment;
+                      const currentDept  = selected.department_name;
+                      const wasInDiffDept = deptAtTime && deptAtTime !== currentDept;
                       return (
-                        <div key={course.id} style={{
-                          display: 'flex', alignItems: 'center', gap: '12px',
-                          padding: '12px 14px', borderRadius: '8px',
-                          border: `1px solid ${isDone ? '#86efac' : '#e8ecf0'}`,
-                          background: isDone ? '#f0fdf4' : '#f8f9fa',
-                        }}>
-                          <div style={{
-                            width: '32px', height: '32px', borderRadius: '8px',
-                            background: isDone ? '#dcfce7' : '#e8ecf0',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: '16px', flexShrink: 0,
-                          }}>
+                        <div key={course.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', borderRadius: '8px', border: `1px solid ${isDone ? '#86efac' : '#e8ecf0'}`, background: isDone ? '#f0fdf4' : '#f8f9fa' }}>
+                          <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: isDone ? '#dcfce7' : '#e8ecf0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', flexShrink: 0 }}>
                             {isDone ? '✅' : '📚'}
                           </div>
                           <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: '13px', fontWeight: '600', color: '#051c2c' }}>
-                              {course.title}
-                            </div>
+                            <div style={{ fontSize: '13px', fontWeight: '600', color: '#051c2c' }}>{course.title}</div>
                             <div style={{ fontSize: '11px', color: '#9baabb', marginTop: '2px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                               <span>{course.institute || '—'}</span>
                               <span>·</span>
                               <span>{course.duration_hours || 0}h</span>
                               {course.start_date && (
-                                <>
-                                  <span>·</span>
-                                  <span>
-                                    {new Date(course.start_date).toLocaleDateString('en-GB')}
-                                    {course.end_date && course.end_date !== course.start_date
-                                      ? ' – ' + new Date(course.end_date).toLocaleDateString('en-GB')
-                                      : ''}
-                                  </span>
-                                </>
+                                <><span>·</span><span>{new Date(course.start_date).toLocaleDateString('en-GB')}</span></>
                               )}
                             </div>
+                            {wasInDiffDept && (
+                              <div style={{ marginTop: '4px', display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#fef9c3', color: '#a16207', padding: '2px 8px', borderRadius: '10px', fontSize: '10px', fontWeight: '600' }}>
+                                📁 Attended while in {deptAtTime} · now in {currentDept}
+                              </div>
+                            )}
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                            <span style={{
-                              padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: '600',
-                              background: isDone ? '#dcfce7' : course.status === 'Ongoing' ? '#dbeafe' : '#fef9c3',
-                              color: isDone ? '#15803d' : course.status === 'Ongoing' ? '#1d4ed8' : '#a16207',
-                            }}>
+                            <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: '600', background: isDone ? '#dcfce7' : course.status === 'Ongoing' ? '#dbeafe' : '#fef9c3', color: isDone ? '#15803d' : course.status === 'Ongoing' ? '#1d4ed8' : '#a16207' }}>
                               {isDone ? 'Attended' : course.enrollment_status || 'Enrolled'}
                             </span>
-                            <span style={{ fontSize: '10px', color: '#9baabb' }}>
-                              {course.type || 'External'}
-                            </span>
+                            <span style={{ fontSize: '10px', color: '#9baabb' }}>{course.type || 'External'}</span>
                           </div>
                         </div>
                       );
@@ -828,10 +732,8 @@ function LearnersPage({ user }) {
                   <div style={{ padding: '24px', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #e8ecf0', textAlign: 'center', fontSize: '13px', color: '#9baabb' }}>
                     No courses enrolled yet.
                     {!isHod && (
-                      <button
-                        style={{ display: 'block', margin: '10px auto 0', background: 'none', border: 'none', color: '#051c2c', fontWeight: '600', cursor: 'pointer', fontSize: '13px', textDecoration: 'underline' }}
-                        onClick={() => { setShowProfile(false); openAssign(selected); }}
-                      >
+                      <button style={{ display: 'block', margin: '10px auto 0', background: 'none', border: 'none', color: '#051c2c', fontWeight: '600', cursor: 'pointer', fontSize: '13px', textDecoration: 'underline' }}
+                        onClick={() => { setShowProfile(false); openAssign(selected); }}>
                         Assign a course →
                       </button>
                     )}
@@ -843,10 +745,12 @@ function LearnersPage({ user }) {
               <button style={styles.cancelBtn} onClick={() => setShowProfile(false)}>Close</button>
               {!isHod && (
                 <>
-                  <button
-                    style={{ ...styles.cancelBtn, background: '#f0f9ff', color: '#0369a1', border: 'none' }}
-                    onClick={() => { setShowProfile(false); openAssign(selected); }}
-                  >
+                  <button style={{ ...styles.cancelBtn, background: '#fef9c3', color: '#a16207', border: 'none' }}
+                    onClick={() => openTransfer(selected)}>
+                    🔄 Transfer Dept
+                  </button>
+                  <button style={{ ...styles.cancelBtn, background: '#f0f9ff', color: '#0369a1', border: 'none' }}
+                    onClick={() => { setShowProfile(false); openAssign(selected); }}>
                     📚 Assign Course
                   </button>
                   <button style={styles.saveBtn} onClick={() => { setShowProfile(false); openEdit(selected); }}>
@@ -854,6 +758,109 @@ function LearnersPage({ user }) {
                   </button>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── TRANSFER DEPARTMENT MODAL ── */}
+      {showTransfer && selected && !isHod && (
+        <div style={styles.overlay} onClick={() => setShowTransfer(false)}>
+          <div style={{ ...styles.modal, maxWidth: '520px' }} onClick={e => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <span style={styles.modalTitle}>Transfer Department</span>
+              <button style={styles.modalClose} onClick={() => setShowTransfer(false)}>×</button>
+            </div>
+            <div style={styles.modalBody}>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', background: '#f8f9fa', borderRadius: '10px', border: '1px solid #e8ecf0', marginBottom: '20px' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#051c2c', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '700', flexShrink: 0 }}>
+                  {selected.name.split(' ').slice(0,2).map(w => w[0]).join('')}
+                </div>
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: '700', color: '#051c2c' }}>{selected.name}</div>
+                  <div style={{ fontSize: '12px', color: '#5a6878', marginTop: '2px' }}>
+                    Currently in: <strong>{selected.department_name || '—'}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {transferError && (
+                <div style={{ background: '#fee2e2', color: '#991b1b', padding: '10px 14px', borderRadius: '8px', fontSize: '13px', marginBottom: '14px' }}>
+                  {transferError}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div>
+                  <label style={styles.fieldLabel}>Transfer To *</label>
+                  <select
+                    value={transferForm.toDeptId}
+                    onChange={e => setTransferForm({...transferForm, toDeptId: e.target.value})}
+                    style={{ ...styles.input, marginTop: '5px', width: '100%' }}
+                  >
+                    <option value="">Select new department...</option>
+                    {departments
+                      .filter(d => d.id !== selected.department_id)
+                      .map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={styles.fieldLabel}>Effective Date *</label>
+                  <input type="date" value={transferForm.effectiveDate}
+                    onChange={e => setTransferForm({...transferForm, effectiveDate: e.target.value})}
+                    style={{ ...styles.input, marginTop: '5px', width: '100%' }} />
+                </div>
+                <div>
+                  <label style={styles.fieldLabel}>Reason (optional)</label>
+                  <textarea
+                    value={transferForm.reason}
+                    onChange={e => setTransferForm({...transferForm, reason: e.target.value})}
+                    placeholder="e.g. Restructuring, promotion, employee request..."
+                    style={{ ...styles.input, marginTop: '5px', width: '100%', minHeight: '70px', resize: 'vertical', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+
+              {transferHistory.length > 0 && (
+                <div style={{ marginTop: '20px' }}>
+                  <div style={styles.sectionLabel}>Transfer History</div>
+                  {transferLoading ? (
+                    <div style={{ color: '#9baabb', fontSize: '13px' }}>Loading...</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {transferHistory.map(h => (
+                        <div key={h.id} style={{ padding: '10px 12px', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #e8ecf0', fontSize: '12px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ color: '#051c2c', fontWeight: '600' }}>
+                              {h.from_dept_name || '—'} → {h.to_dept_name || '—'}
+                            </div>
+                            <div style={{ color: '#9baabb', fontSize: '11px' }}>
+                              {fmtDate(h.effective_date)}
+                            </div>
+                          </div>
+                          {h.reason && (
+                            <div style={{ color: '#5a6878', marginTop: '4px' }}>{h.reason}</div>
+                          )}
+                          {h.transferred_by_name && (
+                            <div style={{ color: '#9baabb', marginTop: '2px' }}>By: {h.transferred_by_name}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div style={styles.modalFooter}>
+              <button style={styles.cancelBtn} onClick={() => setShowTransfer(false)}>Cancel</button>
+              <button
+                onClick={handleTransfer}
+                disabled={transferSaving}
+                style={{ ...styles.saveBtn, opacity: transferSaving ? 0.7 : 1 }}
+              >
+                {transferSaving ? 'Transferring...' : '🔄 Confirm Transfer'}
+              </button>
             </div>
           </div>
         </div>
@@ -880,18 +887,8 @@ function LearnersPage({ user }) {
                     {allCourses.map(course => {
                       const isEnrolled = enrolled.includes(course.id);
                       return (
-                        <div key={course.id} onClick={() => handleEnroll(course.id)} style={{
-                          display: 'flex', alignItems: 'center', gap: '12px',
-                          padding: '12px 16px', borderRadius: '8px', cursor: 'pointer',
-                          border: `1.5px solid ${isEnrolled ? '#86efac' : '#e8ecf0'}`,
-                          background: isEnrolled ? '#f0fdf4' : '#ffffff',
-                        }}>
-                          <div style={{
-                            width: '20px', height: '20px', borderRadius: '50%',
-                            border: `2px solid ${isEnrolled ? '#15803d' : '#d1d5db'}`,
-                            background: isEnrolled ? '#15803d' : 'transparent',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                          }}>
+                        <div key={course.id} onClick={() => handleEnroll(course.id)} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '8px', cursor: 'pointer', border: `1.5px solid ${isEnrolled ? '#86efac' : '#e8ecf0'}`, background: isEnrolled ? '#f0fdf4' : '#ffffff' }}>
+                          <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: `2px solid ${isEnrolled ? '#15803d' : '#d1d5db'}`, background: isEnrolled ? '#15803d' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                             {isEnrolled && <span style={{ color: '#ffffff', fontSize: '11px' }}>✓</span>}
                           </div>
                           <div style={{ flex: 1 }}>
@@ -924,38 +921,10 @@ function LearnersPage({ user }) {
 
       {/* ── PHOTO PREVIEW LIGHTBOX ── */}
       {photoPreview && (
-        <div
-          onClick={() => setPhotoPreview(null)}
-          style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)',
-            zIndex: 2000, display: 'flex', alignItems: 'center',
-            justifyContent: 'center', padding: '20px', cursor: 'zoom-out',
-          }}
-        >
+        <div onClick={() => setPhotoPreview(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', cursor: 'zoom-out' }}>
           <div style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
-            <img
-              src={photoPreview}
-              alt="Preview"
-              style={{
-                maxWidth: '90vw', maxHeight: '85vh',
-                borderRadius: '12px',
-                boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
-                display: 'block',
-              }}
-            />
-            <button
-              onClick={() => setPhotoPreview(null)}
-              style={{
-                position: 'absolute', top: '-14px', right: '-14px',
-                width: '32px', height: '32px', borderRadius: '50%',
-                background: '#ffffff', border: 'none', fontSize: '18px',
-                cursor: 'pointer', display: 'flex', alignItems: 'center',
-                justifyContent: 'center', fontWeight: '700', color: '#051c2c',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.3)', lineHeight: 1,
-              }}
-            >
-              ×
-            </button>
+            <img src={photoPreview} alt="Preview" style={{ maxWidth: '90vw', maxHeight: '85vh', borderRadius: '12px', boxShadow: '0 24px 64px rgba(0,0,0,0.5)', display: 'block' }} />
+            <button onClick={() => setPhotoPreview(null)} style={{ position: 'absolute', top: '-14px', right: '-14px', width: '32px', height: '32px', borderRadius: '50%', background: '#ffffff', border: 'none', fontSize: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', color: '#051c2c', boxShadow: '0 2px 8px rgba(0,0,0,0.3)', lineHeight: 1 }}>×</button>
           </div>
         </div>
       )}
@@ -990,85 +959,80 @@ function FormField({ label, value, onChange, placeholder, type = 'text', options
       {type === 'select' ? (
         <select value={value} onChange={e => onChange(e.target.value)} style={styles.input}>
           <option value="">Select...</option>
-          {options.map(o =>
-            typeof o === 'object'
-              ? <option key={o.value} value={o.value}>{o.label}</option>
-              : <option key={o} value={o}>{o}</option>
-          )}
+          {options.map(o => typeof o === 'object' ? <option key={o.value} value={o.value}>{o.label}</option> : <option key={o} value={o}>{o}</option>)}
         </select>
       ) : (
-        <input type={type} value={value} onChange={e => onChange(e.target.value)}
-          placeholder={placeholder} style={styles.input} />
+        <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={styles.input} />
       )}
     </div>
   );
 }
 
 const styles = {
-  page:             { padding: '30px', minHeight: '100vh', background: '#f2f4f6', fontFamily: 'Inter, sans-serif' },
-  hodBanner:        { background: '#fef9c3', border: '1px solid #fde68a', color: '#92400e', padding: '10px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: '500', marginBottom: '16px' },
-  tabRow:           { display: 'flex', gap: '8px', marginBottom: '20px' },
-  tab:              { padding: '9px 20px', borderRadius: '8px', border: 'none', fontSize: '13px', fontWeight: '600', cursor: 'pointer', background: '#2a3f52', color: '#b6bdc2', fontFamily: 'Inter, sans-serif', display: 'flex', alignItems: 'center', gap: '6px' },
-  tabActive:        { background: '#1a2f42', color: '#ffffff' },
-  tabTick:          { background: '#16a34a', color: '#fff', borderRadius: '50%', width: '16px', height: '16px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px' },
-  statsRow:         { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '16px' },
-  miniStat:         { borderRadius: '10px', padding: '16px' },
-  miniStatLabel:    { fontSize: '11px', fontWeight: '500', marginBottom: '6px' },
-  miniStatValue:    { fontSize: '28px', fontWeight: '800', lineHeight: 1 },
-  miniStatSub:      { fontSize: '10px', marginTop: '4px' },
-  genderRow:        { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' },
-  genderCard:       { borderRadius: '10px', padding: '16px' },
-  genderTitle:      { fontSize: '12px', fontWeight: '600', marginBottom: '10px' },
-  peopleRow:        { display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' },
-  genderLegendLight:{ display: 'flex', gap: '16px', fontSize: '11px', color: 'rgba(255,255,255,0.85)' },
-  tableHeader:      { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' },
-  tableTitle:       { fontSize: '18px', fontWeight: '700', color: '#051c2c' },
-  tableControls:    { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' },
-  searchWrap:       { display: 'flex', alignItems: 'center', background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '8px', padding: '0 10px', gap: '6px' },
-  searchIcon:       { fontSize: '12px' },
-  searchInput:      { border: 'none', outline: 'none', fontSize: '12px', padding: '8px 0', width: '130px', fontFamily: 'Inter, sans-serif', color: '#051c2c', background: 'transparent' },
-  addBtn:           { background: '#051c2c', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '9px 18px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
-  tableWrap:        { background: '#ffffff', borderRadius: '12px', border: '1px solid #e8ecf0', overflow: 'hidden' },
-  table:            { width: '100%', borderCollapse: 'collapse' },
-  tableHeadRow:     { background: '#051c2c' },
-  th:               { padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' },
-  tr:               { borderBottom: '1px solid #f0f2f4' },
-  td:               { padding: '12px 16px', fontSize: '13px', color: '#051c2c', verticalAlign: 'middle' },
-  empId:            { fontFamily: 'monospace', fontSize: '12px', color: '#5a6878' },
-  nameCell:         { display: 'flex', alignItems: 'center', gap: '8px' },
-  avatar:           { width: '30px', height: '30px', borderRadius: '50%', background: '#051c2c', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: '700', flexShrink: 0, overflow: 'hidden' },
-  learnerNameBtn:   { background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: '#051c2c', padding: 0, fontFamily: 'Inter, sans-serif', textDecoration: 'underline', textDecorationColor: '#e8ecf0' },
-  activeTick:       { background: '#16a34a', color: '#fff', borderRadius: '50%', width: '15px', height: '15px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px' },
-  actionBtn:        { background: '#051c2c', border: 'none', borderRadius: '6px', padding: '5px 8px', cursor: 'pointer', fontSize: '13px' },
-  actionMenu:       { position: 'absolute', right: '50px', top: '8px', background: '#ffffff', border: '1px solid #e8ecf0', borderRadius: '8px', boxShadow: '0 4px 20px rgba(5,28,44,0.15)', zIndex: 10, overflow: 'hidden', minWidth: '170px' },
-  actionMenuItem:   { display: 'block', width: '100%', padding: '10px 14px', background: 'none', border: 'none', textAlign: 'left', fontSize: '13px', cursor: 'pointer', color: '#051c2c', fontFamily: 'Inter, sans-serif' },
-  emptyState:       { padding: '40px', textAlign: 'center', color: '#9baabb', fontSize: '14px' },
-  overlay:          { position: 'fixed', inset: 0, background: 'rgba(5,28,44,0.55)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' },
-  modal:            { background: '#ffffff', borderRadius: '16px', width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(5,28,44,0.25)' },
-  modalHeader:      { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #e8ecf0', position: 'sticky', top: 0, background: '#ffffff', zIndex: 1 },
-  modalTitle:       { fontSize: '18px', fontWeight: '700', color: '#051c2c' },
-  modalClose:       { background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#9baabb' },
-  modalBody:        { padding: '20px 24px' },
-  formGrid:         { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' },
-  formField:        { display: 'flex', flexDirection: 'column', gap: '5px' },
-  fieldLabel:       { fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px' },
-  input:            { padding: '10px 12px', border: '1.5px solid #e8ecf0', borderRadius: '8px', fontSize: '13px', outline: 'none', background: '#f8f9fa', color: '#051c2c', fontFamily: 'Inter, sans-serif' },
-  statusRow:        { marginTop: '16px' },
-  radioGroup:       { display: 'flex', gap: '24px', marginTop: '8px' },
-  radioLabel:       { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer', color: '#051c2c' },
-  modalFooter:      { padding: '14px 24px', borderTop: '1px solid #e8ecf0', display: 'flex', justifyContent: 'flex-end', gap: '10px' },
-  cancelBtn:        { padding: '9px 20px', background: 'none', border: '1.5px solid #e8ecf0', borderRadius: '8px', fontSize: '13px', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
-  saveBtn:          { padding: '9px 24px', background: '#051c2c', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', color: '#ffffff', fontFamily: 'Inter, sans-serif' },
-  profileHeader:    { display: 'flex', alignItems: 'center', gap: '20px', padding: '16px', background: '#f8f9fa', borderRadius: '12px', marginBottom: '16px', border: '1px solid #e8ecf0' },
-  profileAvatar:    { width: '56px', height: '56px', borderRadius: '50%', background: '#051c2c', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: '700', flexShrink: 0 },
-  photoUploadBtn:   { position: 'absolute', bottom: 0, right: 0, width: '22px', height: '22px', borderRadius: '50%', background: '#051c2c', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', cursor: 'pointer', border: '2px solid #ffffff' },
-  profileGrid:      { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' },
-  profileInfoItem:  { display:'flex', flexDirection: 'column', gap: '4px' },
-  profileInfoLabel: { fontSize: '10px', fontWeight: '700', color: '#9baabb', textTransform: 'uppercase', letterSpacing: '0.5px' },
-  profileInfoValue: { fontSize: '13px', fontWeight: '500', color: '#051c2c' },
-  trainingStats:    { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '20px' },
-  trainingStat:     { background: '#f8f9fa', borderRadius: '10px', padding: '14px', textAlign: 'center', border: '1px solid #e8ecf0' },
-  sectionLabel:     { fontSize: '12px', fontWeight: '700', color: '#051c2c', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px', paddingBottom: '8px', borderBottom: '1px solid #e8ecf0' },
+  page:              { padding: '30px', minHeight: '100vh', background: '#f2f4f6', fontFamily: 'Inter, sans-serif' },
+  hodBanner:         { background: '#fef9c3', border: '1px solid #fde68a', color: '#92400e', padding: '10px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: '500', marginBottom: '16px' },
+  tabRow:            { display: 'flex', gap: '8px', marginBottom: '20px' },
+  tab:               { padding: '9px 20px', borderRadius: '8px', border: 'none', fontSize: '13px', fontWeight: '600', cursor: 'pointer', background: '#2a3f52', color: '#b6bdc2', fontFamily: 'Inter, sans-serif', display: 'flex', alignItems: 'center', gap: '6px' },
+  tabActive:         { background: '#1a2f42', color: '#ffffff' },
+  tabTick:           { background: '#16a34a', color: '#fff', borderRadius: '50%', width: '16px', height: '16px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px' },
+  statsRow:          { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '16px' },
+  miniStat:          { borderRadius: '10px', padding: '16px' },
+  miniStatLabel:     { fontSize: '11px', fontWeight: '500', marginBottom: '6px' },
+  miniStatValue:     { fontSize: '28px', fontWeight: '800', lineHeight: 1 },
+  miniStatSub:       { fontSize: '10px', marginTop: '4px' },
+  genderRow:         { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' },
+  genderCard:        { borderRadius: '10px', padding: '16px' },
+  genderTitle:       { fontSize: '12px', fontWeight: '600', marginBottom: '10px' },
+  peopleRow:         { display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' },
+  genderLegendLight: { display: 'flex', gap: '16px', fontSize: '11px', color: 'rgba(255,255,255,0.85)' },
+  tableHeader:       { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' },
+  tableTitle:        { fontSize: '18px', fontWeight: '700', color: '#051c2c' },
+  tableControls:     { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' },
+  searchWrap:        { display: 'flex', alignItems: 'center', background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '8px', padding: '0 10px', gap: '6px' },
+  searchIcon:        { fontSize: '12px' },
+  searchInput:       { border: 'none', outline: 'none', fontSize: '12px', padding: '8px 0', width: '130px', fontFamily: 'Inter, sans-serif', color: '#051c2c', background: 'transparent' },
+  addBtn:            { background: '#051c2c', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '9px 18px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
+  tableWrap:         { background: '#ffffff', borderRadius: '12px', border: '1px solid #e8ecf0', overflow: 'hidden' },
+  table:             { width: '100%', borderCollapse: 'collapse' },
+  tableHeadRow:      { background: '#051c2c' },
+  th:                { padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' },
+  tr:                { borderBottom: '1px solid #f0f2f4' },
+  td:                { padding: '12px 16px', fontSize: '13px', color: '#051c2c', verticalAlign: 'middle' },
+  empId:             { fontFamily: 'monospace', fontSize: '12px', color: '#5a6878' },
+  nameCell:          { display: 'flex', alignItems: 'center', gap: '8px' },
+  avatar:            { width: '30px', height: '30px', borderRadius: '50%', background: '#051c2c', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: '700', flexShrink: 0, overflow: 'hidden' },
+  learnerNameBtn:    { background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: '#051c2c', padding: 0, fontFamily: 'Inter, sans-serif', textDecoration: 'underline', textDecorationColor: '#e8ecf0' },
+  activeTick:        { background: '#16a34a', color: '#fff', borderRadius: '50%', width: '15px', height: '15px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px' },
+  actionBtn:         { background: '#051c2c', border: 'none', borderRadius: '6px', padding: '5px 8px', cursor: 'pointer', fontSize: '13px' },
+  actionMenu:        { position: 'absolute', right: '50px', top: '8px', background: '#ffffff', border: '1px solid #e8ecf0', borderRadius: '8px', boxShadow: '0 4px 20px rgba(5,28,44,0.15)', zIndex: 10, overflow: 'hidden', minWidth: '190px' },
+  actionMenuItem:    { display: 'block', width: '100%', padding: '10px 14px', background: 'none', border: 'none', textAlign: 'left', fontSize: '13px', cursor: 'pointer', color: '#051c2c', fontFamily: 'Inter, sans-serif' },
+  emptyState:        { padding: '40px', textAlign: 'center', color: '#9baabb', fontSize: '14px' },
+  overlay:           { position: 'fixed', inset: 0, background: 'rgba(5,28,44,0.55)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' },
+  modal:             { background: '#ffffff', borderRadius: '16px', width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(5,28,44,0.25)' },
+  modalHeader:       { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #e8ecf0', position: 'sticky', top: 0, background: '#ffffff', zIndex: 1 },
+  modalTitle:        { fontSize: '18px', fontWeight: '700', color: '#051c2c' },
+  modalClose:        { background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#9baabb' },
+  modalBody:         { padding: '20px 24px' },
+  formGrid:          { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' },
+  formField:         { display: 'flex', flexDirection: 'column', gap: '5px' },
+  fieldLabel:        { fontSize: '11px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  input:             { padding: '10px 12px', border: '1.5px solid #e8ecf0', borderRadius: '8px', fontSize: '13px', outline: 'none', background: '#f8f9fa', color: '#051c2c', fontFamily: 'Inter, sans-serif' },
+  statusRow:         { marginTop: '16px' },
+  radioGroup:        { display: 'flex', gap: '24px', marginTop: '8px' },
+  radioLabel:        { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer', color: '#051c2c' },
+  modalFooter:       { padding: '14px 24px', borderTop: '1px solid #e8ecf0', display: 'flex', justifyContent: 'flex-end', gap: '10px' },
+  cancelBtn:         { padding: '9px 20px', background: 'none', border: '1.5px solid #e8ecf0', borderRadius: '8px', fontSize: '13px', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
+  saveBtn:           { padding: '9px 24px', background: '#051c2c', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', color: '#ffffff', fontFamily: 'Inter, sans-serif' },
+  profileHeader:     { display: 'flex', alignItems: 'center', gap: '20px', padding: '16px', background: '#f8f9fa', borderRadius: '12px', marginBottom: '16px', border: '1px solid #e8ecf0' },
+  profileAvatar:     { width: '56px', height: '56px', borderRadius: '50%', background: '#051c2c', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: '700', flexShrink: 0 },
+  photoUploadBtn:    { position: 'absolute', bottom: 0, right: 0, width: '22px', height: '22px', borderRadius: '50%', background: '#051c2c', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', cursor: 'pointer', border: '2px solid #ffffff' },
+  profileGrid:       { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' },
+  profileInfoItem:   { display: 'flex', flexDirection: 'column', gap: '4px' },
+  profileInfoLabel:  { fontSize: '10px', fontWeight: '700', color: '#9baabb', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  profileInfoValue:  { fontSize: '13px', fontWeight: '500', color: '#051c2c' },
+  trainingStats:     { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '20px' },
+  trainingStat:      { background: '#f8f9fa', borderRadius: '10px', padding: '14px', textAlign: 'center', border: '1px solid #e8ecf0' },
+  sectionLabel:      { fontSize: '12px', fontWeight: '700', color: '#051c2c', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px', paddingBottom: '8px', borderBottom: '1px solid #e8ecf0' },
 };
 
 export default LearnersPage;
