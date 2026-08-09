@@ -37,11 +37,30 @@ function DepartmentsPage() {
     try {
       const all = await api.getLearners();
       if (Array.isArray(all)) {
-        const dLearners = all.filter(l => l.department_id === dept.id);
-        setDeptLearners(dLearners);
+        const currentLearners = all.filter(l => l.department_id === dept.id);
+
+        const formerResults = await Promise.all(
+          all
+            .filter(l => l.department_id !== dept.id)
+            .map(async l => {
+              try {
+                const history = await api.getLearnerTransferHistory(l.id);
+                if (Array.isArray(history)) {
+                  const match = history.find(h => h.from_dept_id === dept.id);
+                  if (match) return { ...l, transferred_out: true, transfer_info: match };
+                }
+              } catch {}
+              return null;
+            })
+        );
+
+        const formerLearners = formerResults.filter(Boolean);
+        const allRelevant    = [...currentLearners, ...formerLearners];
+
+        setDeptLearners(allRelevant);
 
         const coursesMap = {};
-        await Promise.all(dLearners.map(async learner => {
+        await Promise.all(allRelevant.map(async learner => {
           try {
             const lCourses = await api.getEnrollmentsByLearner(learner.id);
             if (Array.isArray(lCourses)) coursesMap[learner.id] = lCourses;
@@ -73,6 +92,116 @@ function DepartmentsPage() {
     if (status === 'Ongoing') return { bg: '#dbeafe', color: '#1d4ed8' };
     return { bg: '#fef9c3', color: '#a16207' };
   };
+
+  const renderLearnerRow = (learner, isFormer) => {
+    const allCourses       = learnerCourses[learner.id] || [];
+    const coursesHere      = allCourses.filter(c =>
+      !c.department_id_at_enrollment ||
+      c.department_id_at_enrollment === selected.id
+    );
+    const coursesElsewhere = allCourses.filter(c =>
+      c.department_id_at_enrollment &&
+      c.department_id_at_enrollment !== selected.id
+    );
+
+    return (
+      <div key={learner.id} style={{
+        padding: '12px 14px', borderRadius: '10px',
+        border: `1px solid ${isFormer ? '#bae6fd' : '#e8ecf0'}`,
+        background: isFormer ? '#f0f9ff' : '#f8f9fa',
+      }}>
+        <div
+          style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
+          onClick={() => setProfileLearner(profileLearner?.id === learner.id ? null : learner)}
+        >
+          <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: isFormer ? '#0369a1' : '#051c2c', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '700', flexShrink: 0 }}>
+            {learner.name.split(' ').slice(0,2).map(w => w[0]).join('')}
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '13px', fontWeight: '600', color: '#051c2c', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              {learner.name}
+              {isFormer && (
+                <span style={{ background: '#dbeafe', color: '#1d4ed8', padding: '1px 8px', borderRadius: '10px', fontSize: '10px', fontWeight: '600' }}>
+                  Moved to {learner.transfer_info?.to_dept_name || learner.department_name || '—'}
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: '11px', color: '#9baabb', marginTop: '1px', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+              <span>{learner.designation || '—'} · {learner.emp_id || '—'}</span>
+              {!isFormer && coursesElsewhere.length > 0 && (
+                <span style={{ background: '#f0f9ff', color: '#0369a1', padding: '1px 7px', borderRadius: '10px', fontSize: '10px', fontWeight: '600' }}>
+                  🔄 Transferred from {coursesElsewhere[0]?.dept_name_at_enrollment || '—'}
+                </span>
+              )}
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {!isFormer && (
+              <span style={{ background: learner.status === 'Active' ? '#dcfce7' : '#fee2e2', color: learner.status === 'Active' ? '#15803d' : '#991b1b', padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: '600' }}>
+                {learner.status}
+              </span>
+            )}
+            <span style={{ fontSize: '11px', color: '#9baabb' }}>
+              {coursesHere.length} course{coursesHere.length !== 1 ? 's' : ''}
+            </span>
+            <span style={{ fontSize: '12px', color: '#9baabb' }}>
+              {profileLearner?.id === learner.id ? '▲' : '▼'}
+            </span>
+          </div>
+        </div>
+
+        {profileLearner?.id === learner.id && (
+          <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #e8ecf0' }}>
+            {coursesHere.length > 0 && (
+              <div style={{ marginBottom: coursesElsewhere.length > 0 ? '12px' : '0' }}>
+                <div style={{ fontSize: '10px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+                  {isFormer ? `Courses done while in ${selected.name}` : `Courses in ${selected.name}`}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {coursesHere.map((course, ci) => {
+                    const isDone = course.attended === true || course.enrollment_status === 'Attended' || course.enrollment_status === 'Completed';
+                    const sc     = statusColor(isDone ? 'Completed' : course.status || 'Pending');
+                    return (
+                      <span key={ci} title={course.title} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '20px', background: sc.bg, color: sc.color, fontSize: '11px', fontWeight: '600', border: `1px solid ${sc.color}20`, maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {isDone ? '✅' : '📚'}
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{course.title}</span>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {coursesElsewhere.length > 0 && (
+              <div>
+                <div style={{ fontSize: '10px', fontWeight: '700', color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+                  Courses before transfer (in {coursesElsewhere[0]?.dept_name_at_enrollment || '—'})
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {coursesElsewhere.map((course, ci) => {
+                    const isDone = course.attended === true || course.enrollment_status === 'Attended' || course.enrollment_status === 'Completed';
+                    return (
+                      <span key={ci} title={course.title} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '20px', background: '#f0f9ff', color: '#0369a1', fontSize: '11px', fontWeight: '600', border: '1px solid #bae6fd', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {isDone ? '✅' : '📚'}
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{course.title}</span>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {coursesHere.length === 0 && coursesElsewhere.length === 0 && (
+              <div style={{ fontSize: '12px', color: '#9baabb', fontStyle: 'italic' }}>No courses enrolled yet.</div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const currentLearners = deptLearners.filter(l => !l.transferred_out);
+  const formerLearners  = deptLearners.filter(l => l.transferred_out);
 
   return (
     <div style={styles.page}>
@@ -236,8 +365,8 @@ function DepartmentsPage() {
 
               <div style={styles.profileStats}>
                 {[
-                  ['Total Learners',   deptLearners.length],
-                  ['Active',           deptLearners.filter(l => l.status === 'Active').length],
+                  ['Total Learners',   currentLearners.length],
+                  ['Active',           currentLearners.filter(l => l.status === 'Active').length],
                   ['Enrolled Courses', Object.values(learnerCourses).reduce((s, lc) => s + lc.filter(c => !c.department_id_at_enrollment || c.department_id_at_enrollment === selected.id).length, 0)],
                   ['Training Hours',   (+selected.total_training_hours > 0 ? +selected.total_training_hours + 'h' : '0h')],
                 ].map(([k, v]) => (
@@ -252,118 +381,42 @@ function DepartmentsPage() {
                 <div style={styles.sectionLabel}>
                   Learners in this Department
                   <span style={{ fontSize: '11px', color: '#9baabb', fontWeight: '400', marginLeft: '8px' }}>
-                    {deptLearners.length} total
+                    {currentLearners.length} current
+                    {formerLearners.length > 0 && (
+                      <span style={{ marginLeft: '8px', color: '#0369a1' }}>
+                        · {formerLearners.length} former
+                      </span>
+                    )}
                   </span>
                 </div>
 
                 {deptLoading ? (
-                  <div style={{ padding: '20px', textAlign: 'center', color: '#9baabb', fontSize: '13px' }}>Loading learners...</div>
-                ) : deptLearners.length > 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {deptLearners.map(learner => {
-                      const allCourses  = learnerCourses[learner.id] || [];
-
-                      const coursesHere = allCourses.filter(c =>
-                        !c.department_id_at_enrollment ||
-                        c.department_id_at_enrollment === selected.id
-                      );
-
-                      const coursesFromOtherDept = allCourses.filter(c =>
-                        c.department_id_at_enrollment &&
-                        c.department_id_at_enrollment !== selected.id
-                      );
-
-                      return (
-                        <div key={learner.id} style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid #e8ecf0', background: '#f8f9fa' }}>
-
-                          <div
-                            style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
-                            onClick={() => setProfileLearner(profileLearner?.id === learner.id ? null : learner)}
-                          >
-                            <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: '#051c2c', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '700', flexShrink: 0 }}>
-                              {learner.name.split(' ').slice(0,2).map(w => w[0]).join('')}
-                            </div>
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontSize: '13px', fontWeight: '600', color: '#051c2c' }}>{learner.name}</div>
-                              <div style={{ fontSize: '11px', color: '#9baabb', marginTop: '1px', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                                <span>{learner.designation || '—'} · {learner.emp_id || '—'}</span>
-                                {coursesFromOtherDept.length > 0 && (
-                                  <span style={{ background: '#f0f9ff', color: '#0369a1', padding: '1px 7px', borderRadius: '10px', fontSize: '10px', fontWeight: '600' }}>
-                                    🔄 Transferred from {coursesFromOtherDept[0]?.dept_name_at_enrollment || 'prev. dept'}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{ background: learner.status === 'Active' ? '#dcfce7' : '#fee2e2', color: learner.status === 'Active' ? '#15803d' : '#991b1b', padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: '600' }}>
-                                {learner.status}
-                              </span>
-                              <span style={{ fontSize: '11px', color: '#9baabb' }}>
-                                {coursesHere.length} course{coursesHere.length !== 1 ? 's' : ''}
-                              </span>
-                              <span style={{ fontSize: '12px', color: '#9baabb' }}>
-                                {profileLearner?.id === learner.id ? '▲' : '▼'}
-                              </span>
-                            </div>
-                          </div>
-
-                          {profileLearner?.id === learner.id && (
-                            <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #e8ecf0' }}>
-
-                              {coursesHere.length > 0 && (
-                                <div style={{ marginBottom: coursesFromOtherDept.length > 0 ? '12px' : '0' }}>
-                                  <div style={{ fontSize: '10px', fontWeight: '700', color: '#5a6878', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
-                                    Courses done in {selected.name}
-                                  </div>
-                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                                    {coursesHere.map((course, ci) => {
-                                      const isDone = course.attended === true || course.enrollment_status === 'Attended' || course.enrollment_status === 'Completed';
-                                      const sc = statusColor(isDone ? 'Completed' : course.status || 'Pending');
-                                      return (
-                                        <span key={ci} title={`${course.title} — ${isDone ? 'Attended' : course.status || 'Enrolled'}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '20px', background: sc.bg, color: sc.color, fontSize: '11px', fontWeight: '600', border: `1px solid ${sc.color}20`, maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                          {isDone ? '✅' : '📚'}
-                                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{course.title}</span>
-                                        </span>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              )}
-
-                              {coursesFromOtherDept.length > 0 && (
-                                <div>
-                                  <div style={{ fontSize: '10px', fontWeight: '700', color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
-                                    Courses done before transfer (in {coursesFromOtherDept[0]?.dept_name_at_enrollment || 'previous dept'})
-                                  </div>
-                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                                    {coursesFromOtherDept.map((course, ci) => {
-                                      const isDone = course.attended === true || course.enrollment_status === 'Attended' || course.enrollment_status === 'Completed';
-                                      return (
-                                        <span key={ci} title={course.title} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '20px', background: '#f0f9ff', color: '#0369a1', fontSize: '11px', fontWeight: '600', border: '1px solid #bae6fd', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                          {isDone ? '✅' : '📚'}
-                                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{course.title}</span>
-                                        </span>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              )}
-
-                              {coursesHere.length === 0 && coursesFromOtherDept.length === 0 && (
-                                <div style={{ fontSize: '12px', color: '#9baabb', fontStyle: 'italic' }}>
-                                  Not enrolled in any courses yet.
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                  <div style={{ padding: '20px', textAlign: 'center', color: '#9baabb', fontSize: '13px' }}>
+                    Loading learners...
                   </div>
-                ) : (
+                ) : currentLearners.length === 0 && formerLearners.length === 0 ? (
                   <div style={{ padding: '20px', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #e8ecf0', textAlign: 'center', fontSize: '13px', color: '#9baabb' }}>
                     No learners assigned to this department yet.
                   </div>
+                ) : (
+                  <>
+                    {currentLearners.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: formerLearners.length > 0 ? '16px' : '0' }}>
+                        {currentLearners.map(l => renderLearnerRow(l, false))}
+                      </div>
+                    )}
+
+                    {formerLearners.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px', paddingBottom: '6px', paddingTop: '12px', borderTop: '1px dashed #bae6fd' }}>
+                          Former Learners — Transferred Out
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          {formerLearners.map(l => renderLearnerRow(l, true))}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
