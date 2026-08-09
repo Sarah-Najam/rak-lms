@@ -1017,6 +1017,15 @@ const fmtFileSize = (bytes) => {
                               <div style={{ fontSize: '13px', fontWeight: '600', color: '#051c2c' }}>{learner.name}</div>
                               <div style={{ fontSize: '11px', color: '#9baabb', marginTop: '2px' }}>
                                 {learner.emp_id || '—'} · {learner.department_name || '—'}
+                                {learner.was_transferred && (
+  <div style={{ marginTop: '3px' }}>
+    {learner.dept_name_at_enrollment && learner.dept_name_at_enrollment !== learner.department_name ? (
+      <span style={{ background: '#fef9c3', color: '#a16207', padding: '2px 8px', borderRadius: '10px', fontSize: '10px', fontWeight: '600' }}>
+        📁 Attended from {learner.dept_name_at_enrollment} · now in {learner.department_name}
+      </span>
+    ) : null}
+  </div>
+)}
                               </div>
                             </div>
                             {learner.attended ? (

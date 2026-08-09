@@ -29,6 +29,7 @@ const ACTION_COLORS = {
   SET_BUDGET:              { bg: '#fef9c3', color: '#a16207' },
   UPLOAD_MATERIAL:         { bg: '#dcfce7', color: '#15803d' },
   DELETE_MATERIAL:         { bg: '#fee2e2', color: '#991b1b' },
+  DEPARTMENT_TRANSFER: { bg: '#fef9c3', color: '#a16207' },
 };
 
 const ACTION_LABELS = {
@@ -59,6 +60,7 @@ const ACTION_LABELS = {
   SET_BUDGET:              '💰 Set Budget',
   UPLOAD_MATERIAL:         '📎 Uploaded Material',
   DELETE_MATERIAL:         '🗑️ Deleted Material',
+  DEPARTMENT_TRANSFER: '🔄 Department Transfer',
 };
 
 const SKIP_FIELDS = [
