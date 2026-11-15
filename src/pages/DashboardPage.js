@@ -4,6 +4,7 @@ import api from '../api';
 function DashboardPage() {
 
   const [stats,        setStats]        = useState(null);
+  const [nationalityCounts, setNationalityCounts] = useState(null);
   const [courses,      setCourses]      = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [calView,      setCalView]      = useState('Monthly');
@@ -20,8 +21,9 @@ function DashboardPage() {
       api.getReports({ year }),
 
       api.getCourses(),
-      api.getDepartments(),
-    ]).then(([s, c]) => {
+      api.getLearners().catch(() => null),
+    ]).then(([s, c, learners]) => {
+      setNationalityCounts(Array.isArray(learners) ? countNationalities(learners) : null);
       setStats(s);
       if (Array.isArray(c)) setCourses(c);
       setLoading(false);
@@ -119,29 +121,39 @@ function DashboardPage() {
         </div>
       </div>
 
-      <div style={styles.mainGrid}>
+      <style>{dashboardGridStyles}</style>
+      <div className="lms-dashboard-grid">
 
         {/* ── LEFT COLUMN ── */}
-        <div style={styles.leftCol}>
+        <div className="lms-dashboard-group">
 
           {/* ── 2×2 STAT CARDS ── */}
-          <div style={styles.statGrid}>
+          <div className="lms-dashboard-group">
 
-            <div style={{ ...styles.statCard, background: '#051C2C' }}>
+            <div style={{ ...styles.statCard, gridArea: 'learners', background: '#051C2C' }}>
               <div style={styles.statIcon}>🎓</div>
               <div style={styles.statNum}>{stats?.totalLearners || 0}</div>
               <div style={styles.statLabel}>Total Learners</div>
               <div style={styles.statSub}>As of end of {selectedYear}</div>
+              {nationalityCounts && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginTop: '10px', fontSize: '12px', color: '#fff' }}>
+                  <span>Emirati: <strong>{nationalityCounts.emirati}</strong></span>
+                  <span>Non-Emirati: <strong>{nationalityCounts.nonEmirati}</strong></span>
+                  {nationalityCounts.unknown > 0 && (
+                    <span>Unspecified: <strong>{nationalityCounts.unknown}</strong></span>
+                  )}
+                </div>
+              )}
             </div>
 
-            <div style={{ ...styles.statCard, background: '#AF5F46' }}>
+            <div style={{ ...styles.statCard, gridArea: 'courses', background: '#AF5F46' }}>
               <div style={styles.statIcon}>📚</div>
               <div style={styles.statNum}>{stats?.totalCourses || 0}</div>
               <div style={styles.statLabel}>Total Courses</div>
               <div style={styles.statSub}>As of end of {selectedYear}</div>
             </div>
 
-            <div style={{ ...styles.statCard, background: '#6a9ea8' }}>
+            <div style={{ ...styles.statCard, gridArea: 'trained', background: '#6a9ea8' }}>
               <div style={styles.statIcon}>🏆</div>
               <div style={styles.statNum}>{stats?.totalLearnersTrainedThisYear || 0}</div>
               <div style={styles.statLabel}>Learners Trained</div>
@@ -150,7 +162,7 @@ function DashboardPage() {
               </div>
             </div>
 
-            <div style={{ ...styles.statCard, background: '#7a9e7a' }}>
+            <div style={{ ...styles.statCard, gridArea: 'hours', background: '#7a9e7a' }}>
               <div style={styles.statIcon}>⏱️</div>
               <div style={styles.statNum}>{stats?.totalTrainingHours || 0}h</div>
               <div style={styles.statLabel}>Total Training Hours</div>
@@ -160,10 +172,10 @@ function DashboardPage() {
           </div>
 
           {/* ── CHARTS ROW ── */}
-          <div style={styles.chartsRow}>
+          <div className="lms-dashboard-group">
 
             {/* Satisfaction Trend */}
-            <div style={styles.chartCard}>
+            <div style={{ ...styles.chartCard, gridArea: 'trend' }}>
               <div style={styles.chartHeader}>
                 <span style={styles.chartTitle}>Satisfaction Trend</span>
                 <div style={styles.toggleGroup}>
@@ -206,7 +218,7 @@ function DashboardPage() {
             </div>
 
             {/* Satisfaction Analytics */}
-            <div style={styles.chartCard}>
+            <div style={{ ...styles.chartCard, gridArea: 'analytics' }}>
               <div style={styles.chartHeader}>
                 <span style={styles.chartTitle}>Satisfaction Analytics</span>
               </div>
@@ -264,10 +276,10 @@ function DashboardPage() {
         </div>
 
         {/* ── RIGHT COLUMN ── */}
-        <div style={styles.rightCol}>
+        <div className="lms-dashboard-group">
 
           {/* Upcoming/Completed Developmental Trainings */}
-          <div style={styles.calCard}>
+          <div style={{ ...styles.calCard, gridArea: 'developmental' }}>
             <div style={{
               fontSize: '14px', fontWeight: '700',
               color: '#ffffff', marginBottom: '14px',
@@ -288,7 +300,7 @@ function DashboardPage() {
           </div>
 
           {/* Mandatory Trainings */}
-          <div style={{ ...styles.calCard, background: '#AF5F46' }}>
+          <div style={{ ...styles.calCard, gridArea: 'mandatory', background: '#AF5F46' }}>
             <div style={{
               fontSize: '14px', fontWeight: '700',
               color: '#ffffff', marginBottom: '14px',
@@ -309,7 +321,7 @@ function DashboardPage() {
           </div>
 
           {/* Courses by Period */}
-          <div style={styles.chartCard}>
+          <div style={{ ...styles.chartCard, gridArea: 'period' }}>
             <div style={styles.chartHeader}>
               <span style={styles.chartTitle}>Total Courses by Period</span>
               <div style={styles.toggleGroup}>
@@ -340,6 +352,45 @@ function DashboardPage() {
     </div>
   );
 }
+
+function countNationalities(learners) {
+  const counts = { emirati: 0, nonEmirati: 0, unknown: 0 };
+  for (const learner of learners) {
+    const nationality = learner.nationality?.trim().toLowerCase();
+    if (!nationality) counts.unknown++;
+    else if (nationality === 'emirati' || nationality === 'emarati') counts.emirati++;
+    else counts.nonEmirati++;
+  }
+  return counts;
+}
+
+const dashboardGridStyles = `
+  .lms-dashboard-grid {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas:
+      "learners courses developmental"
+      "trained hours mandatory"
+      "trend analytics period";
+  }
+  .lms-dashboard-group { display: contents; }
+  .lms-dashboard-grid > *, .lms-dashboard-group > * { min-width: 0; }
+  @media (max-width: 1200px) {
+    .lms-dashboard-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-areas: "learners courses" "trained hours" "developmental mandatory"
+        "trend analytics" "period period";
+    }
+  }
+  @media (max-width: 700px) {
+    .lms-dashboard-grid {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-areas: "learners" "courses" "trained" "hours" "developmental"
+        "mandatory" "trend" "analytics" "period";
+    }
+  }
+`;
 
 function TrainingRow({ course, fmtDate }) {
   return (
@@ -442,16 +493,11 @@ const styles = {
   pastYearTag:    { display: 'inline-block', marginLeft: '12px', fontSize: '12px', fontWeight: '600', color: '#a16207', background: '#fef9c3', padding: '3px 10px', borderRadius: '20px', verticalAlign: 'middle' },
   yearSelectWrap: { display: 'flex', alignItems: 'center', gap: '8px', background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '8px', padding: '6px 12px' },
   yearSelect:     { border: 'none', outline: 'none', fontSize: '14px', fontWeight: '700', color: '#051c2c', background: 'transparent', fontFamily: 'Inter, sans-serif', cursor: 'pointer' },
-  mainGrid:       { display: 'grid', gridTemplateColumns: '1fr 380px', gap: '24px', alignItems: 'start' },
-  leftCol:        { display: 'flex', flexDirection: 'column', gap: '20px' },
-  rightCol:       { display: 'flex', flexDirection: 'column', gap: '20px' },
-  statGrid:       { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' },
   statCard:       { borderRadius: '14px', padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: '6px' },
   statIcon:       { fontSize: '22px', marginBottom: '2px' },
   statNum:        { fontSize: '36px', fontWeight: '800', color: '#ffffff', lineHeight: 1, letterSpacing: '-1px' },
   statLabel:      { fontSize: '13px', color: 'rgba(255,255,255,0.75)', fontWeight: '500' },
   statSub:        { fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginTop: '1px' },
-  chartsRow:      { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' },
   chartCard:      { background: '#ffffff', border: '1.5px solid #e8ecf0', borderRadius: '12px', padding: '18px 20px' },
   chartHeader:    { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' },
   chartTitle:     { fontSize: '13px', fontWeight: '600', color: '#051c2c' },
